@@ -114,8 +114,7 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
 
     def upgrade(self):
         """
-        Use the Upgrade module to update the node content to the latest version
-        if needed.
+        Update the node content to the latest version if needed.
         """
 
         if self.isLocked():
