@@ -12,7 +12,6 @@ from Katana import (
 )
 
 from . import c
-from .Upgrade import upgrade
 
 __all__ = ['GSVDashboardNode']
 
@@ -47,6 +46,37 @@ def undo_ctx(name, post_actions=None):
         Utils.UndoStack.CloseGroup()
         for post_action in post_actions:
             post_action()
+
+
+def upgrade(node):
+    """
+    If the passed node is from an older version, upgrade it without
+    breaking the setup.
+
+    TODO [upgrade] Not implemented yet.
+
+    Args:
+        node(GSVDashboardNode): GSVDashboard node that need to be upgraded
+    """
+
+    Utils.UndoStack.DisableCapture()
+
+    try:
+        pass
+        # This is where you would detect an out-of-date version:
+        #    node.getParameter('version')
+        # and upgrade the internal network.
+
+    except Exception as exception:
+        logger.exception(
+            "[upgrade] Error upgrading {} node <{}>: {}"
+            "".format(c.name, node.getName(), exception)
+        )
+
+    finally:
+        Utils.UndoStack.EnableCapture()
+
+    return
 
 
 class GSVDashboardNode(NodegraphAPI.SuperTool):
@@ -117,5 +147,6 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
         ):
             pass
         return
+
 
 
