@@ -5,15 +5,23 @@ import logging
 from contextlib import (
     contextmanager
 )
+try:
+    from typing import (
+        List
+    )
+except ImportError:
+    pass
 
 from Katana import (
     NodegraphAPI,
-    Utils
+    Utils,
 )
+import PackageSuperToolAPI
 
 from . import c
+from .GSV import *
 
-__all__ = ['GSVDashboardNode']
+__all__ = ['GSVDashboardNode', "GSVNode"]
 
 logger = logging.getLogger("{}.Node".format(c.name))
 
@@ -102,7 +110,20 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
     """
 
     def __build_default_network(self):
-        pass
+        # TODO
+
+        # get inner input port
+        port_in = self.getSendPort(
+            self.getInputPortByIndex(0).getName()
+        )
+        # get inner output port
+        port_out = self.getReturnPort(
+            self.getOutputPortByIndex(0).getName()
+        )
+        # connect them
+        port_out.connect(port_in)
+
+        return
 
     def addParameterHints(self, attrName, inputDict):
         """
@@ -131,21 +152,100 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
     Actual API
     """
 
-    def add_gsv(self, name):
+    def edit_gsv(self, name, value):
         with undo_ctx(
                 "Add edit options for GSV <{}> on node <{}>"
                 "".format(name, self.getname())
         ):
             pass
+        # TODO
         return
 
-    def delete_gsv(self, name):
+    def get_edited_gsvs(self):
+        # TODO
+        pass
+
+    def unedit_gsv(self, name):
         with undo_ctx(
                 "Delete edit options for GSV <{}> on node <{}>"
                 "".format(name, self.getname())
         ):
             pass
+        # TODO
         return
 
+    def get_gsvs(self, all_scene=False):
+        """
+
+        Args:
+            all_scene(bool):
+                If False only return the GSVs from the upstream node flow.
+                If True from all the scene.
+
+        """
+        # TODO
+        output = list()  # type: List[GSVNode]
+        return output
 
 
+class GSVNode(object):
+    """
+    Object describing a GSV in the Katana scene relative to this super tool.
+
+    Attributes:
+        __knode(NodegraphAPI.Node or None): a VariableSet node.
+    """
+
+    def __init__(self, data):
+
+        # TODO see how __data and __knode is set
+
+        self.__data = None  # type: GSVLocal
+        self.__knode = None  # type: NodegraphAPI.Node
+
+        return
+
+    @property
+    def name(self):
+        """
+        Returns:
+            str: Name of the GSV represented.
+        """
+        return self.__data.name
+
+    @property
+    def is_edited(self):
+        """
+
+        Returns:
+            bool: True if the SuperTool has a node created for this GSV.
+        """
+        return True if self.__knode else False
+
+    @property
+    def is_locked(self):
+        """
+        Returns:
+            bool: True if the GSV can't be modified.
+        """
+        return self.__data.is_locked()
+
+    def get_current_value(self):
+        """
+        Returns:
+            str or None: Current value the GSV is set to or None.
+        """
+
+        # if there is an associated variableSet return it's value.
+        if self.__knode:
+            output = self.__knode.getParameter("variableValue")
+            output = output.getValue(NodegraphAPI.GetCurrentTime())
+            return str(output)
+
+        if self.__data.locked:
+            pass
+
+        return None
+
+    def get_all_values(self):
+        pass
