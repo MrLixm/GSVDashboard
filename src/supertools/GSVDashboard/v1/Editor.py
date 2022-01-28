@@ -24,7 +24,7 @@ from Katana import (
 from . import c
 # import for type hints only
 try:
-    from .Node import GSVDashboardNode
+    from .Node import GSVDashboardNode, GSVNode
     from .GSV import *
 except:
     pass
@@ -137,7 +137,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.ttlb_props_footer = QTitleBar()
         self.btn_reset = QtWidgets.QPushButton()  # TODO
         self.btn_edit = QtWidgets.QPushButton()  # TODO
-        self.wgt_gsv_prop = GSVPropertiesWidget()  # TODO
+        self.gsv_props_wgt = GSVPropertiesWidget()  # TODO
 
         # ==============
         # Modify Widgets
@@ -152,6 +152,10 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.tw1.setUniformRowHeights(True)
         self.tw1.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
         self.tw1.itemSelectionChanged.connect(self.__tw_selection_changed)
+
+        # QPushButton
+        self.btn_edit.setText("edit")
+        self.btn_reset.setText("reset")
 
         # QModeMenu
         self.mg_prop.set_content(self.mg_prop_content)
@@ -180,16 +184,6 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             self.mg_prop.set_footer_widget(_widgets[1])
             continue
 
-        # GSVPropertiesWidget
-        self.wgt_gsv_prop.value_changed_sgn.connect(
-            self.__gsv_set_value
-        )
-        # the QMenuGroup should have already the status built upon the ones
-        # available in GSVPropertiesWidget so it's safe to do this
-        self.wgt_gsv_prop.status_changed_sgn.connect(
-            self.mg_prop.set_status_current
-        )
-
         # ==============
         # Add to Layouts
         # ==============
@@ -197,6 +191,23 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.lyt_m.addWidget(self.ttlb_header)
         self.lyt_m.addWidget(self.tw1)
         self.lyt_m.addWidget(self.mg_prop)
+
+        # ==============
+        # Connections
+        # ==============
+
+        self.btn_reset.triggered.connect(self.gsv_props_wgt.reset)
+        self.btn_edit.triggered.connect(self.gsv_props_wgt.reset)
+
+        # GSVPropertiesWidget
+        self.gsv_props_wgt.value_changed_sgn.connect(
+            self.__gsv_set_value
+        )
+        # the QMenuGroup should have already the status built upon the ones
+        # available in GSVPropertiesWidget so it's safe to do this
+        self.gsv_props_wgt.status_changed_sgn.connect(
+            self.mg_prop.set_status_current
+        )
 
         return
 
@@ -212,6 +223,8 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             "".format(json.dumps(data, indent=4, default=str))
         )
 
+        # TODO take in account modification by the Node itself
+
         return
 
     def __tw_selection_changed(self):
@@ -225,11 +238,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             return
 
         # update the properties
-        self.wgt_gsv_prop.set_data(gsv_data)
-        # then update the idget status depending of the gsv data
-        if gsv_data.is_locked():
-            self.mg_prop.set_status_current(self.status_locked)
-        # TODO find a way to set mg_prop status
+        self.gsv_props_wgt.set_data(gsv_data)
 
         logger.info("[__lw_selection_changed]")
         return
@@ -287,60 +296,99 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         super(GSVPropertiesWidget, self).__init__()
 
         self.__status = self.status_locked  # default status is read only
-        self.__data = None  # type: GSVLocal
+        self.__data = None  # type: GSVNode
         self.__edited = False
+
+        self.cbb_value = None  # type: QtWidgets.QComboBox
+
+        self.__ui_cook()
 
         return
 
-    def __uibuild(self):
+    def __ui_cook(self):
 
         # TODO build rest of ui
 
+        # ==============
+        # Create Layouts
+        # ==============
+        self.lyt = QtWidgets.QVBoxLayout()
+        self.lyt_top = QtWidgets.QHBoxLayout()
+
+        # ==============
+        # Create Widgets
+        # ==============
+        self.lbl_name = QtWidgets.QLabel()
         self.cbb_value = QtWidgets.QComboBox()
+        self.lw_nodes = QtWidgets.QListWidget()
+
+        # ==============
+        # Modify Widgets
+        # ==============
         self.cbb_value.currentIndexChanged.connect(self.__value_changed)
+        self.cbb_value.setEditable(False)
+
+        # ==============
+        # Modify Layouts
+        # ==============
+        self.lyt_top.addWidget(self.lbl_name)
+        self.lyt_top.addWidget(self.cbb_value)
+        self.lyt.addLayout(self.lyt_top)
+        self.lyt.addWidget(self.lw_nodes)
+        self.setLayout(self.lyt)
 
         return
 
-    def __value_changed(self):
+    def __ui_bake(self):
         """
-        To call when the user edit the value combobox.
+        Fill the widgets with content base on __data attribute without having
+        to recreate them.
         """
-        self.__edited = True
-        value = self.cbb_value.currentText()
-        self.value_changed_sgn.emit(value)
+
+        if not self.__data:
+            logger.error(
+                "[GSVPropertiesWidget][__ui_cook] Called but "
+                "self.__data is None."
+            )
+            return
+
+        if self.__data.is_locked:
+            self.setDisabled(True)
+            # TODO see if child widgets also inherits this.
+
+        self.lbl_name.setText(self.__data.name)
+        self.cbb_value.clear()
 
         return
 
-    def reset(self):
+    def __update_status(self):
         """
-        Reset the interface as it was never modified by the user
-        """
+        Update ``__status`` attribute according to instance attributes.
+        Status depends of :
 
-        self.__uibuild()
+        * ``__data`` : if locked
 
-        return
+        * ``__edited`` : if True or False
 
-    def set_data(self, gsv_data):
-
-        self.__data = gsv_data
-        self.update_status()
-
-        return
-
-    def update_status(self):
-        """
-        Update __status attribute according to self data.
         """
         if not self.__data:
+            logger.warning(
+                "[GSVPropertiesWidget][update_status] Called but "
+                "self.__data is None."
+            )
+            self.__status = self.status_locked
+            # return without emitting signal
+            return
+
+        if self.__data.is_locked:
             self.__status = self.status_locked
 
-        elif self.__data.is_locked():
-            self.__status = self.status_locked
-
-        elif self.__edited:
+        # The SuperTool already have a node that edit this GSV or this widget
+        # is marked as edited :
+        elif self.__data.is_edited or self.__edited:
             self.__status = self.status_edited
 
-        elif not self.__status:
+        elif not self.__edited:
             self.__status = self.status_editable
 
         else:
@@ -350,8 +398,44 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
                 "the GSV <{}>".format(self.__data.name)
             )
 
-        # emit the new status
+        # emit the new status (can be the same as previous one emitted)
         self.status_changed_sgn.emit(self.__status)
+
+        return
+
+    def __value_changed(self):
+        """
+        To call when the user or the script edit the ``value combobox``.
+        """
+        self.__edited = True
+        value = self.cbb_value.currentText()
+        self.value_changed_sgn.emit(value)
+
+        return
+
+    def reset(self):
+        """
+        Reset the interface as it was never modified by the user.
+        """
+
+        self.__edited = False  # order is important
+        self.__ui_bake()
+
+        return
+
+    def set_data(self, gsv_data):
+        """
+        Set the GSV data this widget represents.
+
+        Args:
+            gsv_data(GSVNode):
+
+        """
+
+        self.__data = gsv_data
+        self.__update_status()
+        # update the ui with the new data
+        self.reset()
 
         return
 
