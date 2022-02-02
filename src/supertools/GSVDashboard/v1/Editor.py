@@ -22,6 +22,7 @@ from Katana import (
 
 
 from . import c
+from . import Editor_resources as resources
 # import for type hints only
 try:
     from .Node import GSVDashboardNode, SuperToolGSV
@@ -38,15 +39,19 @@ logger = logging.getLogger("{}.Editor".format(c.name))
 class GSVDashboardEditor(QtWidgets.QWidget):
     """
     Args:
-        parent(QtWidgets.QWidget or None):
-        node(GSVDashboardNode):
+        node(GSVDashboardNode): SuperTool node
+        parent(QtWidgets.QWidget or None): dd
+
+    Attributes:
+        __node(GSVDashboardNode): SuperTool node
+        __frozen(bool): used for ui update handling
     """
 
     def __init__(self, parent, node):
 
         super(GSVDashboardEditor, self).__init__(parent)
 
-        self.__node = node
+        self.__node = node  # type: GSVDashboardNode
         self.__node.upgrade()
         self.__frozen = True
 
@@ -71,6 +76,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             return
 
         self.__frozen = False
+        self.__update_tw1 = False
         self.__setup_event_handlers(True)
 
         return
@@ -99,19 +105,59 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             enabled(bool): Set if the even handler is enabled or not.
         """
 
-        # these are the events that will update the listWidget (__lw_update())
+        # these are the events that will update the treewidget
         events4lwupdate = [
             "port_disconnect",
             "port_connect",
             "parameter_finalizeValue",
             "parameter_setValue",
+            "node_setBypassed",
+            "node_setName"
         ]
         for event in events4lwupdate:
             Utils.EventModule.RegisterCollapsedHandler(
-                self.__tw_update,
+                self.__process_event,
                 event,
                 enabled=enabled
             )
+
+        # this is once the events are finished, actually update tw1
+        Utils.EventModule.RegisterCollapsedHandler(
+            self.__idle_callback,
+            "event_idle",
+            enabled=enabled
+        )
+        return
+
+    def __idle_callback(self, *args, **kwargs):
+        """
+        Called when an event is finished.
+        Update ``tw1`` if ``__update_tw1`` is set to True.
+        """
+
+        # if self.__update_tw1:
+        #     self.__tw_update()
+        #     self.__update_tw1 = False
+
+        return
+
+    def __process_event(self, event_data):
+        """
+        Args:
+            event_data(list of list):
+                event data from katana
+                [ [ "event type", int, {event source} ], ... ]
+        """
+        if self.__update_tw1:
+            return
+
+        for event in event_data:
+
+            event_source = event[2]
+            print("{}: {}".format(event[0], event_source))
+
+            self.__update_tw1 = True
+
         return
 
     """------------------------------------------------------------------------
@@ -129,102 +175,120 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # Create Widgets
         # ==============
         self.ttlb_header = QTitleBar()
+        self.btn_update = QtWidgets.QPushButton()
+        self.cbb_source = QtWidgets.QComboBox()
         self.tw1 = QtWidgets.QTreeWidget()
-        self.mg_prop = QModMenu()
-        self.ttlb_props_hd_locked = QTitleBar()
-        self.ttlb_props_hd_reset = QTitleBar()
-        self.ttlb_props_hd_edit = QTitleBar()
-        self.ttlb_props_footer = QTitleBar()
-        self.btn_reset = QtWidgets.QPushButton()  # TODO
-        self.btn_edit = QtWidgets.QPushButton()  # TODO
-        self.gsv_props_wgt = GSVPropertiesWidget()  # TODO
+        # self.mg_prop = QModMenu()
+        # self.ttlb_props_hd_locked = QTitleBar()
+        # self.ttlb_props_hd_reset = QTitleBar()
+        # self.ttlb_props_hd_edit = QTitleBar()
+        # self.ttlb_props_footer = QTitleBar()
+        # self.btn_reset = QtWidgets.QPushButton()  # TODO
+        # self.btn_edit = QtWidgets.QPushButton()  # TODO
+        # self.gsv_props_wgt = GSVPropertiesWidget()  # TODO
 
         # ==============
         # Modify Widgets
         # ==============
 
         # treewidget
-        self.tw1.setMinimumHeight(200)
         self.tw1.setHeaderHidden(True)
+        self.tw1.setColumnCount(TreeWidgetGSVItem.column_number)
+        self.tw1.setMinimumHeight(200)
         self.tw1.setAlternatingRowColors(True)
         self.tw1.setSortingEnabled(True)
-        self.tw1.setItemsExpandable(False)
         self.tw1.setUniformRowHeights(True)
+        self.tw1.setRootIsDecorated(False)
+        self.tw1.setItemsExpandable(False)
         self.tw1.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
-        self.tw1.itemSelectionChanged.connect(self.__tw_selection_changed)
-
-        # QPushButton
-        self.btn_edit.setText("edit")
-        self.btn_reset.setText("reset")
-
-        # QModeMenu
-        self.mg_prop.set_content(self.mg_prop_content)
-        mgprop_setup = {
-            GSVPropertiesWidget.status_editable: [
-                self.ttlb_props_hd_edit,
-                self.ttlb_props_footer
-            ],
-            GSVPropertiesWidget.status_locked: [
-                self.ttlb_props_hd_locked,
-                self.ttlb_props_footer
-            ],
-            GSVPropertiesWidget.status_edited: [
-                self.ttlb_props_hd_reset,
-                self.ttlb_props_footer
-            ],
-        }
-        for _status, _widgets in mgprop_setup.items():
-
-            self.mg_prop.add_status(
-                _status,
-                replace_default=True,
-                set_to_current=True
+        tw1_header = self.tw1.header()
+        # The user can resize the section
+        tw1_header.setSectionResizeMode(tw1_header.Interactive)
+        tw1_header.resizeSections(tw1_header.ResizeToContents)
+        # # QPushButton
+        self.btn_update.setIcon(
+            QtGui.QIcon(
+                UI4.Util.IconManager.GetPixmap(
+                    r"Icons\update_active20_hilite.png"
+                )
             )
-            self.mg_prop.set_header_widget(_widgets[0])
-            self.mg_prop.set_footer_widget(_widgets[1])
-            continue
+        )
+        # self.btn_edit.setText("edit")
+        # self.btn_reset.setText("reset")
+        #
+        # # QModeMenu
+        # self.mg_prop.set_content(self.mg_prop_content)
+        # mgprop_setup = {
+        #     GSVPropertiesWidget.status_editable: [
+        #         self.ttlb_props_hd_edit,
+        #         self.ttlb_props_footer
+        #     ],
+        #     GSVPropertiesWidget.status_locked: [
+        #         self.ttlb_props_hd_locked,
+        #         self.ttlb_props_footer
+        #     ],
+        #     GSVPropertiesWidget.status_edited: [
+        #         self.ttlb_props_hd_reset,
+        #         self.ttlb_props_footer
+        #     ],
+        # }
+        # for _status, _widgets in mgprop_setup.items():
+        #
+        #     self.mg_prop.add_status(
+        #         _status,
+        #         replace_default=True,
+        #         set_to_current=True
+        #     )
+        #     self.mg_prop.set_header_widget(_widgets[0])
+        #     self.mg_prop.set_footer_widget(_widgets[1])
+        #     continue
 
         # ==============
         # Add to Layouts
         # ==============
         self.setLayout(self.lyt_m)
-        self.lyt_m.addWidget(self.ttlb_header)
+        self.lyt_m.addWidget(self.btn_update)
+        # self.lyt_m.addWidget(self.ttlb_header)
         self.lyt_m.addWidget(self.tw1)
-        self.lyt_m.addWidget(self.mg_prop)
+        # self.lyt_m.addWidget(self.mg_prop)
 
         # ==============
         # Connections
         # ==============
 
-        self.btn_reset.triggered.connect(self.gsv_props_wgt.reset)
-        self.btn_edit.triggered.connect(self.gsv_props_wgt.reset)
-
-        # GSVPropertiesWidget
-        self.gsv_props_wgt.value_changed_sgn.connect(
-            self.__gsv_set_value
-        )
-        # the QMenuGroup should have already the status built upon the ones
-        # available in GSVPropertiesWidget so it's safe to do this
-        self.gsv_props_wgt.status_changed_sgn.connect(
-            self.mg_prop.set_status_current
-        )
+        self.tw1.itemSelectionChanged.connect(self.__tw_selection_changed)
+        self.btn_update.clicked.connect(self.__tw_update)
+        # self.btn_reset.clicked.connect(self.gsv_props_wgt.reset)
+        # self.btn_edit.clicked.connect(self.gsv_props_wgt.reset)
+        #
+        # # GSVPropertiesWidget
+        # self.gsv_props_wgt.value_changed_sgn.connect(
+        #     self.__gsv_set_value
+        # )
+        # # the QMenuGroup should have already the status built upon the ones
+        # # available in GSVPropertiesWidget so it's safe to do this
+        # self.gsv_props_wgt.status_changed_sgn.connect(
+        #     self.mg_prop.set_status_current
+        # )
 
         return
 
-    def __tw_update(self, data):
+    def __tw_update(self):
         """
-        Args:
-            data(list of list):
-                event data from katana
-                [ [ "event type", int, {event source} ], ... ]
         """
-        logger.info(
-            "[__lw_update]:\n{}"
-            "".format(json.dumps(data, indent=4, default=str))
+
+        parse_mode = "logical_upstream"  # TODO
+
+        # clear teh treewidget before adding new entries
+        self.tw1.clear()
+
+        st_gsvs = self.__node.get_gsvs(mode=parse_mode)
+        for st_gsv in st_gsvs:
+            qtwi = TreeWidgetGSVItem(st_gsv=st_gsv, parent=self.tw1)
+
+        logger.debug(
+            "[GSVDashboardEditor][__tw_update] Finished."
         )
-
-        # TODO take in account modification by the Node itself
-
         return
 
     def __tw_selection_changed(self):
@@ -238,25 +302,34 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             return
 
         # update the properties
-        self.gsv_props_wgt.set_data(gsv_data)
+        # self.gsv_props_wgt.set_data(gsv_data)
 
-        logger.info("[__lw_selection_changed]")
+        logger.debug(
+            "[GSVDashboardEditor][__lw_selection_changed] Finished."
+            "SuperToolGSV found is <{}>.".format(gsv_data)
+        )
         return
 
     def __tw_selected_get_gsv_data(self):
         """
-        Return the GSV class instance for the currently selected GSV in
-        the treewidget
+        Return the SuperToolGSV instance for the currently selected GSV in
+        the treewidget.
 
         Returns:
-            GSVObject or None:
+            SuperToolGSV or None:
         """
-        selection = self.tw1.selectedItems()  # type: List[QtWidgets.QTreeWidgetItem]
+        selection = self.tw1.selectedItems()  # type: List[TreeWidgetGSVItem]
         if not selection:
+            logger.debug(
+                "[GSVDashboardEditor][__tw_selected_get_gsv_data] Called but"
+                "self.tw1.selectedItems() return None ?"
+            )
             return
-        selection = selection[0]  # type: QtWidgets.QTreeWidgetItem
 
-        gsv_data = selection.data(TODO)  # type: GSVObject
+        # selection in the GUI can only be done on one item anyway
+        selection = selection[0]  # type: TreeWidgetGSVItem
+
+        gsv_data = selection.gsv  # type: SuperToolGSV
         if not gsv_data:
             logger.error(
                 "[GSVDashboardEditor][__tw_get_gsv_data] No gsv data found "
@@ -270,12 +343,146 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         pass
 
 
+class TreeWidgetGSVItem(QtWidgets.QTreeWidgetItem):
+    """
+    Create and build a QTreeWidgetItem representing a GSV.
+
+    Column 0 : Icon
+    Column 1 : GSV name
+    COlumn 2 : GSV values
+
+    Args:
+        st_gsv(SuperToolGSV):
+        parent(QtWidgets.QTreeWidget):
+
+    Attributes:
+        gsv(SuperToolGSV): the GSV as a python object relative to the supertool
+    """
+
+    __status_config = {
+        "colors": {
+            SuperToolGSV.statuses.global_not_set: resources.Colors.yellow_global,
+            SuperToolGSV.statuses.global_set: resources.Colors.yellow_global_disabled,
+            SuperToolGSV.statuses.local_set_this: resources.Colors.edited,
+            SuperToolGSV.statuses.local_set: resources.Colors.text_disabled
+        },
+        "icons": {
+            SuperToolGSV.statuses.global_not_set: resources.Icons.status_g_viewed,
+            SuperToolGSV.statuses.global_set: resources.Icons.status_g_locked,
+            SuperToolGSV.statuses.local_set_this: resources.Icons.status_l_edited,
+            SuperToolGSV.statuses.local_not_set: resources.Icons.status_l_viewed,
+            SuperToolGSV.statuses.local_set: resources.Icons.status_l_locked,
+        }
+    }
+
+    column_number = 3
+    row_height = 30
+    column0_width = 0
+    column1_width = 200
+
+    def __init__(self, st_gsv, parent):
+
+        super(TreeWidgetGSVItem, self).__init__(parent)
+        self.gsv = st_gsv
+
+        self.__build()
+
+        return
+
+    def __build(self):
+
+        def list2str(list_obj):
+            out = "[ "
+            for item in list_obj:
+                out += "{}, ".format(item)
+
+            out = out[:-1][:-1]
+            out += " ]"
+            return out
+
+        # column: icon
+        column = 0
+        self.setTextAlignment(column, QtCore.Qt.AlignCenter)
+        self.setToolTip(column, "Status: {}".format(self.gsv.status))
+        self.setSizeHint(
+            column, QtCore.QSize(self.column0_width, self.row_height)
+        )
+
+        # column: gsv name
+        column = 1
+        self.setText(column, self.gsv.name)
+        self.setTextAlignment(column, QtCore.Qt.AlignVCenter)
+        self.setToolTip(column, "GSV Name")
+        self.setSizeHint(
+            column, QtCore.QSize(self.column1_width, self.row_height)
+        )
+
+        # column: gsv values
+        column = 2
+        self.setText(column, list2str(self.gsv.get_all_values()))
+        self.setTextAlignment(column, QtCore.Qt.AlignLeft)
+        self.setToolTip(column, "Values the GSV can take.")
+        self.setTextAlignment(column, QtCore.Qt.AlignVCenter)
+
+        self.__update_columns_color([0, 1, 2])
+        self.__update_columns_icon([0])
+
+        return
+
+    def __update_columns_color(self, columns):
+        """
+        Update text color for the given columns depending of the current
+        GSV status.
+
+        Args:
+            columns (list of int): list of column index to update
+
+        """
+        color = self.__status_config["colors"].get(self.gsv.status)
+        if not color:
+            return
+
+        for column in columns:
+
+            self.setForeground(
+                column,
+                QtGui.QBrush(QtGui.QColor(color[0], color[1], color[2]))
+            )
+
+        return
+
+    def __update_columns_icon(self, columns, icon_size=None):
+        """
+
+        Args:
+            columns (list of int): list of column index to update
+            icon_size(int or None): height and width
+
+        """
+
+        for column in columns:
+
+            iconpath = self.__status_config["icons"].get(self.gsv.status)
+
+            qpixmap = QtGui.QPixmap(iconpath)
+            if icon_size:
+                qpixmap = qpixmap.scaled(
+                    icon_size,
+                    icon_size,
+                    transformMode=QtCore.Qt.SmoothTransformation
+                )
+            qicon = QtGui.QIcon(qpixmap)
+            self.setIcon(column, qicon)
+
+        return
+
+
 class GSVPropertiesWidget(QtWidgets.QWidget):
     """
 
     ::
 
-        [gsv name ] [gsv value ▾]
+        [gsv name ] [gsv value +]
 
         [ node1                 ]
         [ node2                 ]
