@@ -4,6 +4,8 @@ from collections import OrderedDict
 import sys
 import logging
 # Python 2 ...
+from types import NoneType
+
 try:
     from typing import (
         Optional,
@@ -15,57 +17,157 @@ except ImportError:
 import NodegraphAPI
 
 from . import c
+from . import SceneParse
 
 
-__all__ = ["GSVNode", "GSVScene", "GSVLocal"]
+__all__ = ["GSVNode", "GSVScene", "GSVObject", "GSVSettings"]
 
 logger = logging.getLogger("{}.Node".format(c.name))
+TIME = NodegraphAPI.GetCurrentTime()
 
-""" config_dict(dict)
-Configure how the script behave
 
-[lvl0]
-[key=exclude:value](list):
-    variable names that will be removed from result
-[key=nodes:value](dict):
-    List the node that make use of local GSVs.
+class GSVSettings(dict):
+    """
+    A regular dictionary object with a fixed structure. Structure is verified
+    through ``validate()`` method.
 
-[lvl1]
-[key=nodes:value.key](str):  
-    katana node type 
-[key=nodes:value.key:value](dict):  
-    parameters path on node that help build the GSV
+    Used to configure the output result of the scene parsing.
 
-[lvl2]
-[key=nodes:value.key:value.key=name:value](str):  
-    parameters path on node to get the variable name
-[key=nodes:value.key:value.key=values:value](str):  
-    parameters path on node to get the values the variable can take
+    [excluded.asGroupsNodeType](list of str):
+        list of node type that should not be considered as groups and children
+        are as such not processed.
 
-"""
+    """
 
-CONFIG = {
-    "excluded": ["gafferState"],
-    "nodes": {
-        "VariableSwitch": {
-            "action": "getter",
-            "name": "variableName",
-            "values": "patterns"
+    __default = {
+        "excluded": ["gafferState"],
+        "nodes": {
+            "VariableSwitch": {
+                "action": "getter",
+                "name": "variableName",
+                "values": "patterns"
+            },
+            "VariableEnabledGroup": {
+                "action": "getter",
+                "name": "variableName",
+                "values": "pattern"
+            },
+            "VariableSet": {
+                "action": "setter",
+                "name": "variableName",
+                "values": "variableValue"
+            }
         },
-        "VariableEnabledGroup": {
-            "action": "getter",
-            "name": "variableName",
-            "values": "pattern"
-        },
-        "VariableSet": {
-            "action": "setter",
-            "name": "variableName",
-            "values": "variableValue"
+        "parsing": {
+            "mode": "logical_upstream",
+            "source": None,
+            "excluded": {
+                "asGroupsNodeType": ["GafferThree"]
+            },
         }
     }
-}
 
-TIME = NodegraphAPI.GetCurrentTime()
+    __expected = {
+        "excluded": list(),
+        "nodes": {
+            "template": {
+                "action": ["getter", "setter"],
+                "name": str(),
+                "values": str()
+            }
+        },
+        "parsing": {
+            "mode": ["logical_upstream", "all_scene", "upstream"],
+            "source": None,
+            "excluded": {
+                "asGroupsNodeType": list()
+            }
+        }
+    }
+
+    def __init__(self, *args, **kwargs):
+
+        if not args and not kwargs:
+            super(GSVSettings, self).__init__(self.__default)
+        else:
+            super(GSVSettings, self).__init__(*args, **kwargs)
+            self.validate()
+
+        return
+
+    def __setitem__(self, *args, **kwargs):
+        super(GSVSettings, self).__setitem__(*args, **kwargs)
+        self.validate()
+
+    def validate(self):
+        """
+        Raises:
+            AssertionError: if self is not built properly.
+        """
+        pre = "[{}] ".format(self.__class__.__name__)
+        node_key_list = list(self.get_expected("nodes.template").keys())
+
+        # check root keys
+        for rk, rv in self.__expected.items():
+
+            assert isinstance(
+                self.get(rk), type(rv)
+            ), pre + "Missing key <{}>".format(rk)
+
+        # check the "nodes" key
+        for nkey, nvalue in self["nodes"].items():
+
+            assert isinstance(
+                nvalue, dict
+            ), pre + "Value for Key <{}> is not a dict but <>"\
+                     "".format(nkey, type(nvalue))
+
+            for nvkey, nvvalue in nvalue.items():
+
+                assert nkey in node_key_list, \
+                    pre + "Key <{}> is not supported: must be one of <{}>" \
+                          "".format(nvkey, node_key_list)
+
+        # check parsing.mode
+        parsing_mode = self["parsing"].get("mode")
+        assert parsing_mode in self.get_expected("parsing.mode"), \
+            pre + "parsing.mode key unsuported value <{}>".format(parsing_mode)
+
+        # check parsing.source (value can be None)
+        assert isinstance(
+            self["parsing"].get("source", str()), (NoneType, NodegraphAPI.Node)
+        ), pre + "Missing key <parsing.source>"
+
+        # check parsing.excluded
+        assert isinstance(
+            self["parsing"].get("excluded"),
+            type(self.get_expected("parsing.excluded"))
+        ), pre + "Missing key <parsing.excluded>"
+
+        # check parsing.excluded.asGroupsNodeType
+        assert isinstance(
+            self["parsing"]["excluded"].get("asGroupsNodeType"),
+            type(self.get_expected("parsing.excluded.asGroupsNodeType"))
+        ), pre + "Missing key <parsing.excluded.asGroupsNodeType>"
+
+        return
+
+    def get_expected(self, keypath):
+        """
+        Args:
+            keypath(str): path to nested key, using "." as a key seperator.
+
+        Returns:
+            any: type depends of key's value.
+        """
+
+        # access nested keys:value pairs using the "." separator
+        keypath = keypath.split(".")  # type: list
+        value = self.__expected
+        for key in keypath:
+            value = value[key]
+
+        return value
 
 
 class GSVNode(object):
@@ -74,39 +176,42 @@ class GSVNode(object):
 
     Args:
         node(NodegraphAPI.Node):
+        scene(GSVScene): parent scene this node was generated from.
 
     Attributes:
         node: Katana node
         type: Katana node type
-        action: Action performed on GSV: setter or getter
+        gsv_action:
+            Action performed on GSV: setter or getter.
+            Used by the corresponding properties method.
         gsv_name: Name of the GSV
         gsv_values: Value(s) the GSV can take
 
     """
 
-    __sources = CONFIG.get("nodes", dict())
+    def __init__(self, node, scene):
 
-    def __init__(self, node):
-
+        self.scene = scene  # type: GSVScene
         self.node = node
         self.type = node.getType()
-        self.action = None
+
+        self.gsv_action = None
         self.gsv_name = None
         self.gsv_values = None
 
-        self.action = self.__sources[self.type]["action"]
+        self.gsv_action = self.scene.settings[self.type]["action"]
 
         self.gsv_name = self.get_parameter(
-            param_path=self.__sources[self.type]["name"]
+            param_path=self.scene.settings[self.type]["name"]
         )[0]
 
         self.gsv_values = self.get_parameter(
-            param_path=self.__sources[self.type]["values"]
+            param_path=self.scene.settings[self.type]["values"]
         )
 
         logger.debug(
-            "[GSVNode][__init__] Finished for node <{}>."
-            "gsv_name={},gsv_values={}"
+            "[GSVNode][__init__] Finished for node <{}> // "
+            "gsv_name={}, gsv_values={}"
             "".format(node, self.gsv_name, self.gsv_values)
         )
 
@@ -114,6 +219,22 @@ class GSVNode(object):
 
     def __str__(self):
         return "{}({})".format(self.node.getName(), self.type)
+
+    @property
+    def is_setter(self):
+        """
+        Returns:
+            bool: True if the node set a GSV
+        """
+        return self.gsv_action == "setter"
+
+    @property
+    def is_getter(self):
+        """
+        Returns:
+            bool: True if the node use a GSV without setting it.
+        """
+        return self.gsv_action == "getter"
 
     def get_parameter(self, param_path):
         """
@@ -146,14 +267,15 @@ class GSVNode(object):
         return output
 
 
-class GSVLocal(object):
+class GSVObject(object):
     """
     Represent a GSV as a python object. Allow to know which node is using this
     gsv and what value it can take.
 
-    A local GSV is considered as locked when it's value is set in the Nodegraph
+    A GSV is considered as locked when it's value is set locally
+    in the Nodegraph.
 
-    # TODO get the current value this GSV is potentially set to
+    a GSV can be local or global (see Katana doc).
 
     Args:
         name(str): gsv name used in the nodegraph
@@ -162,14 +284,16 @@ class GSVLocal(object):
     Attributes:
         name: Name of the local GSV
         scene: Parent scene this GSV can found in.
-        nodes: LIst nodes that are using this GSV.
+        nodes: List of nodes that are using this GSV.
         values: List of value the GSV can take.
-        locked: Value the GSV is currently set to or None if not set yet.
+        type: If the gsv is global/local. Used by the corresponding properties.
 
     """
 
     __instances = list()
-    __excluded = CONFIG.get("excluded", list())
+
+    global_type = "global"
+    local_type = "local"
 
     def __new__(cls, *args, **kwargs):
 
@@ -177,7 +301,7 @@ class GSVLocal(object):
         scene = kwargs.get("scene") or args[1]  # type: GSVScene
 
         # If the variable name is specified as excluded return None
-        if name in cls.__excluded:
+        if name in scene.settings["excluded"]:
             return None
 
         # try to find if an instance of this class with the same name and same
@@ -185,19 +309,19 @@ class GSVLocal(object):
         # If yes, return it instead of creating a new one.
         for instance in cls.__instances:
             if instance.name == name and instance.scene == scene:
-                return instance  # type: GSVLocal
+                return instance  # type: GSVObject
 
-        new_instance = super(GSVLocal, cls).__new__(cls)
+        new_instance = super(GSVObject, cls).__new__(cls)
         cls.__instances.append(new_instance)
         return new_instance
 
     def __init__(self, name, scene):
 
-        self.name = name
-        self.scene = scene
+        self.name = name  # type: str
+        self.scene = scene  # type: GSVScene
         self.nodes = list()  # type: List[GSVNode]
         self.values = list()  # type: List[str]
-        self.locked = None  # type: Optional[str]
+        self.type = None  # type: str
 
     def __build_nodes(self):
         """
@@ -205,6 +329,7 @@ class GSVLocal(object):
         This nodes are setter and getters.
         """
 
+        # node order must be maintained
         self.nodes = list()
 
         for gsvnode in self.scene.nodes:
@@ -240,13 +365,64 @@ class GSVLocal(object):
 
         return
 
+    def __set_type(self):
+        """
+        Find if the GSV name is in global GSV and set type attribute to global
+         or local accordingly.
+        """
+
+        global_gsv_param = NodegraphAPI.GetRootNode().getParameter('variables')
+        global_gsvs = [
+            param.getName() for param in global_gsv_param.getChildren()
+        ]
+
+        if self.name in global_gsvs:
+            self.type = self.global_type
+        else:
+            self.type = self.local_type
+
+        return
+
+    @property
+    def locked(self):
+        """
+        Last value the GSV has been set to or None if it has never been set.
+
+        TODO last value is hard to determine so consider the result
+         an approximation for now.
+
+        Returns:
+            None or str:
+        """
+
+        value = None
+
+        # self.nodes should be ordered by the nodegraph flow, meaning the last
+        # setter node we find is the one used to set the value
+        for node in self.nodes:
+            if node.is_setter:
+                # gsv_values return a list but for setter nodes this list will
+                # always have one index anyway.
+                value = node.gsv_values[0]
+
+        return value
+
+    @property
+    def is_global(self):
+        return self.type == self.global_type
+
+    @property
+    def is_local(self):
+        return self.type == self.local_type
+
     def build(self):
 
         self.__build_nodes()
         self.__build_values()
+        self.__set_type()
 
         logger.debug(
-            "[GSVLocal][build] Finished for name=<{}>".format(self.name)
+            "[GSVObject][build] Finished for name=<{}>".format(self.name)
         )
         return
 
@@ -256,51 +432,121 @@ class GSVLocal(object):
         """
 
         if not self.values:
-            logger.warning("[GSVLocal][todict] self.values is empty")
+            logger.warning("[GSVObject][todict] self.values is empty")
         if not self.nodes:
-            logger.warning("[GSVLocal][todict] self.nodes is empty")
+            logger.warning("[GSVObject][todict] self.nodes is empty")
 
         return {
+            "type": self.type,
             "name": self.name,
             "values": self.values,
-            "nodes": map(str, self.nodes)
+            "nodes": map(str, self.nodes),
+            "locked": self.locked
         }
 
 
 class GSVScene(object):
     """
     A group of node associated with an arbitrary number of gsvs.
+
+    Args:
+        settings(GSVSettings):
     """
 
-    def __init__(self):
+    def __init__(self, settings):
 
+        self.settings = settings  # type: GSVSettings
         self.nodes = list()  # type: List[GSVNode]
-        self.gsvs = list()  # type: List[GSVLocal]
+        self.gsvs = list()  # type: List[GSVObject]
 
-    def _build_nodes(self):
+    def __parse_all(self):
         """
-        Find all the nodes in the nodegraph that use the gsv feature.
+        Build the <nodes> attribute.
+        """
+        # node order must be maintained
+
+        for node_class in self.settings["nodes"].keys():
+
+            nodes = NodegraphAPI.GetAllNodesByType(
+                node_class,
+                sortByName=False
+            )  # type: list
+            for node in nodes:
+                self.nodes.append(GSVNode(node, scene=self))
+
+            continue
+
+        return
+
+    def __parse_logical_upstream(self):
+        """
+        Build the <nodes> attribute.
+        """
+        # node order must be maintained
+
+        source = self.settings["parsing"]["source"]
+        if not source:
+            # By safety but this should never happens
+            raise ValueError(
+                "Can't perform __parse_logical_upstream as"
+                "no source has been submitted through settings"
+            )
+
+        settings = SceneParse.ParseSettings()
+        settings.logical = True
+        settings.exluded_asGroupsNodeType = self.settings[
+            "parsing"]["excluded"]["asGroupsNodeType"]
+
+        result = SceneParse.get_upstream_nodes(
+            source_node=source,
+            source_port=None,
+            settings=settings
+        )
+        self.nodes.extend(result)
+        return
+
+    def __parse_upstream(self):
+        """
+        Build the <nodes> attribute.
+        """
+
+        # node order must be maintained
+        # TODO
+        raise NotImplementedError("__parse_upstream is not implemented yet.")
+
+    def __build_nodes(self):
+        """
+        Find all the nodes in the nodegraph that use the gsv feature depending
+        of the mode specified in self.settings.
         """
 
         # reset self.nodes first
         self.nodes = list()
 
-        for node_class, _ in GSVNode.__sources.items():
+        mode = self.settings["parsing"]["mode"]
 
-            nodes = NodegraphAPI.GetAllNodesByType(node_class)  # type: list
-            for node in nodes:
-                self.nodes.append(GSVNode(node))
+        if mode == "all_scene":
+            self.__parse_all()
 
-            continue
+        elif mode == "logical_upstream":
+            self.__parse_logical_upstream()
+
+        elif mode == "upstream":
+            self.__parse_upstream()
+
+        else:
+            raise ValueError(
+                "Unsuported mode <{}> in settings passed.".format(mode)
+            )
 
         logger.debug(
-            "[GSVLocal][_build_nodes] Finished. {} nodes found."
+            "[GSVObject][__build_nodes] Finished. {} nodes found."
             "".format(len(self.nodes))
         )
 
         return
 
-    def _build_gsvs(self):
+    def __build_gsvs(self):
         """
         From the node list find what gsv is used and build its object.
         """
@@ -310,7 +556,7 @@ class GSVScene(object):
 
         for gsvnode in self.nodes:
 
-            gsv = GSVLocal(gsvnode.gsv_name, self)
+            gsv = GSVObject(gsvnode.gsv_name, self)  # can return None !
             # gsv might be excluded, so it returns None
             if not gsv:
                 continue
@@ -321,21 +567,26 @@ class GSVScene(object):
             self.gsvs.append(gsv)
             continue
 
+        # TODO why this is not in the above loop ?
         # we don't forget to build the gsv object if we want to use its attributes
         for gsvlocal in self.gsvs:
             gsvlocal.build()
 
         logger.debug(
-            "[GSVLocal][_build_gsvs] Finished. {} gsv found."
+            "[GSVObject][_build_gsvs] Finished. {} gsv found."
             "".format(len(self.gsvs))
         )
 
         return
 
     def build(self):
+        """
+        Scene is empty until you build it. Can also be used to update it.
+        Fill the <nodes> and <gsvs> instance attributes.
+        """
 
-        self._build_nodes()
-        self._build_gsvs()
+        self.__build_nodes()
+        self.__build_gsvs()
 
         return
 

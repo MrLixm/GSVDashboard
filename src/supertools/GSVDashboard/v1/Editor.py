@@ -24,7 +24,7 @@ from Katana import (
 from . import c
 # import for type hints only
 try:
-    from .Node import GSVDashboardNode, GSVNode
+    from .Node import GSVDashboardNode, SuperToolGSV
     from .GSV import *
 except:
     pass
@@ -249,14 +249,14 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         the treewidget
 
         Returns:
-            GSVLocal or None:
+            GSVObject or None:
         """
         selection = self.tw1.selectedItems()  # type: List[QtWidgets.QTreeWidgetItem]
         if not selection:
             return
         selection = selection[0]  # type: QtWidgets.QTreeWidgetItem
 
-        gsv_data = selection.data(TODO)  # type: GSVLocal
+        gsv_data = selection.data(TODO)  # type: GSVObject
         if not gsv_data:
             logger.error(
                 "[GSVDashboardEditor][__tw_get_gsv_data] No gsv data found "
@@ -296,7 +296,7 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         super(GSVPropertiesWidget, self).__init__()
 
         self.__status = self.status_locked  # default status is read only
-        self.__data = None  # type: GSVNode
+        self.__data = None  # type: SuperToolGSV
         self.__edited = False
 
         self.cbb_value = None  # type: QtWidgets.QComboBox
@@ -428,7 +428,7 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         Set the GSV data this widget represents.
 
         Args:
-            gsv_data(GSVNode):
+            gsv_data(SuperToolGSV):
 
         """
 
