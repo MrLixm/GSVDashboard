@@ -30,6 +30,7 @@ class ParseSettings(dict):
     """
 
     __default = {
+        "include_groups": False,
         "excluded": {
             "asGroupsNodeType": []
         },
@@ -68,6 +69,14 @@ class ParseSettings(dict):
     def logical(self, logical_value):
         self["logical"] = logical_value
 
+    @property
+    def include_groups(self):
+        return self["include_groups"]
+
+    @include_groups.setter
+    def include_groups(self, include_groups_value):
+        self["include_groups"] = include_groups_value
+
     def validate(self):
         """
         Raises:
@@ -83,6 +92,9 @@ class ParseSettings(dict):
 
         assert isinstance(self.get("logical"), bool),\
             pre + "Missing key <logical> or value is not <bool>."
+
+        assert isinstance(self.get("include_groups"), bool),\
+            pre + "Missing key <include_groups> or value is not <bool>."
 
         return
 
@@ -123,6 +135,10 @@ def get_upstream_nodes(source_node, source_port, settings):
     if isinstance(source_node, NodegraphAPI.GroupNode) and (
             source_node.getType() not in settings.exluded_asGroupsNodeType
     ):
+
+        # include the group node before visiting its content, if specified.
+        if settings.include_groups:
+            buffer.append(source_node)
 
         # if we passed a port we can just find what child node is connected
         if source_port:

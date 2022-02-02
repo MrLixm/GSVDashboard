@@ -173,6 +173,7 @@ class GSVSettings(dict):
 class GSVNode(object):
     """
     A Katana node that use the GSV feature.
+    You must make sure the node use the GSV feature before instancing the class
 
     Args:
         node(NodegraphAPI.Node):
@@ -199,14 +200,14 @@ class GSVNode(object):
         self.gsv_name = None
         self.gsv_values = None
 
-        self.gsv_action = self.scene.settings[self.type]["action"]
+        self.gsv_action = self.scene.settings["nodes"][self.type]["action"]
 
         self.gsv_name = self.get_parameter(
-            param_path=self.scene.settings[self.type]["name"]
+            param_path=self.scene.settings["nodes"][self.type]["name"]
         )[0]
 
         self.gsv_values = self.get_parameter(
-            param_path=self.scene.settings[self.type]["values"]
+            param_path=self.scene.settings["nodes"][self.type]["values"]
         )
 
         logger.debug(
@@ -448,6 +449,7 @@ class GSVObject(object):
 class GSVScene(object):
     """
     A group of node associated with an arbitrary number of gsvs.
+    Disabled nodes are considered as excluded.
 
     Args:
         settings(GSVSettings):
@@ -472,10 +474,12 @@ class GSVScene(object):
                 sortByName=False
             )  # type: list
             for node in nodes:
+
                 self.nodes.append(GSVNode(node, scene=self))
 
             continue
 
+        self.__parse_post_actions()
         return
 
     def __parse_logical_upstream(self):
@@ -493,16 +497,28 @@ class GSVScene(object):
             )
 
         settings = SceneParse.ParseSettings()
+        settings.include_groups = True
         settings.logical = True
         settings.exluded_asGroupsNodeType = self.settings[
             "parsing"]["excluded"]["asGroupsNodeType"]
 
-        result = SceneParse.get_upstream_nodes(
+        # list of all upstream logical nodes, need to be filtered
+        upstream_nodes = SceneParse.get_upstream_nodes(
             source_node=source,
             source_port=None,
             settings=settings
         )
-        self.nodes.extend(result)
+        for knode in upstream_nodes:
+
+            # filter nodes using nodeTypes specified in settings
+            if knode.getType() not in self.settings["nodes"].keys():
+                continue
+
+            gsvnode = GSVNode(node=knode, scene=self)
+            self.nodes.append(gsvnode)
+            continue
+
+        self.__parse_post_actions()
         return
 
     def __parse_upstream(self):
@@ -513,6 +529,17 @@ class GSVScene(object):
         # node order must be maintained
         # TODO
         raise NotImplementedError("__parse_upstream is not implemented yet.")
+
+    def __parse_post_actions(self):
+        """
+        Actions that need to be perforemed post parsing methods execution.
+        """
+        # remove nodes that are disabled
+        self.nodes = filter(
+            lambda gsvnode: not gsvnode.node.isBypassed(), self.nodes
+        )
+
+        return
 
     def __build_nodes(self):
         """

@@ -239,7 +239,7 @@ class SuperToolGSVStatus:
     global_set = "global set locally"
     local_not_set = "local not set"
     local_set = "local set locally"
-    local_set_this = "local set by teh supertool"
+    local_set_this = "local set by the supertool"
 
 
 class SuperToolGSV(object):
@@ -263,6 +263,9 @@ class SuperToolGSV(object):
         self.__knode = None  # type: NodegraphAPI.Node
 
         return
+
+    def __str__(self):
+        return "SuperToolGSV(<{}><{}>)".format(self.name, self.status)
 
     @property
     def name(self):
@@ -310,7 +313,7 @@ class SuperToolGSV(object):
             str: current status
         """
 
-        if self.is_global and self.is_edited and self.is_locked:
+        if self.is_global and (self.is_edited or self.is_locked):
             return self.statuses.global_set
 
         if self.is_global:
