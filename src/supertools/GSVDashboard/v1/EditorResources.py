@@ -33,3 +33,6 @@ class Icons:
     status_l_edited = os.path.join(__root, "status_l_edited.svg")
     status_l_locked = os.path.join(__root, "status_l_locked.svg")
     status_l_viewed = os.path.join(__root, "status_l_viewed.svg")
+    status_node_getter = os.path.join(__root, "status_node_getter.svg")
+    status_node_setter = os.path.join(__root, "status_node_setter.svg")
+    info = os.path.join(__root, "info.svg")
