@@ -23,7 +23,7 @@ from . import c
 from . import EditorResources as resources
 from .EditorComponents import (
     QModMenu,
-    TreeWidgetGSVItem,
+    TreeWidgetItemGSV,
     GSVPropertiesWidget,
     QTitleBar
 )
@@ -158,7 +158,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         for event in event_data:
 
             event_source = event[2]
-            print("{}: {}".format(event[0], event_source))
+            print("{}: {}".format(event[0], event_source))  # TODO remove
 
             self.__update_tw1 = True
 
@@ -182,14 +182,15 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.btn_update = QtWidgets.QPushButton()
         self.cbb_source = QtWidgets.QComboBox()
         self.tw1 = QtWidgets.QTreeWidget()
-        # self.mmnu_props = QModMenu()
+        self.mmnu_props = QModMenu()
+
         # self.ttlb_props_hd_locked = QTitleBar()
         # self.ttlb_props_hd_reset = QTitleBar()
         # self.ttlb_props_hd_edit = QTitleBar()
         # self.ttlb_props_footer = QTitleBar()
         # self.btn_reset = QtWidgets.QPushButton()  # TODO
         # self.btn_edit = QtWidgets.QPushButton()  # TODO
-        # self.gsv_props_wgt = GSVPropertiesWidget()  # TODO
+        self.gsv_props_wgt = GSVPropertiesWidget()  # TODO
 
         # ==============
         # Modify Widgets
@@ -197,7 +198,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
 
         # treewidget
         # self.tw1.setHeaderHidden(True)
-        self.tw1.setColumnCount(TreeWidgetGSVItem.column_number())
+        self.tw1.setColumnCount(TreeWidgetItemGSV.column_number())
         self.tw1.setMinimumHeight(150)
         self.tw1.setAlternatingRowColors(True)
         self.tw1.setSortingEnabled(True)
@@ -210,9 +211,9 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.tw1.setSelectionBehavior(self.tw1.SelectRows)
         # remove dotted border on columns
         self.tw1.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.tw1.setColumnWidth(0, TreeWidgetGSVItem.column_size(0)[0])
-        self.tw1.setColumnWidth(1, TreeWidgetGSVItem.column_size(1)[0])
-        self.tw1.setHeaderLabels(TreeWidgetGSVItem.column_labels())
+        self.tw1.setColumnWidth(0, TreeWidgetItemGSV.column_size(0)[0])
+        self.tw1.setColumnWidth(1, TreeWidgetItemGSV.column_size(1)[0])
+        self.tw1.setHeaderLabels(TreeWidgetItemGSV.column_labels())
         tw1_header = self.tw1.header()
         # The user can resize the section
         tw1_header.setSectionResizeMode(tw1_header.Interactive)
@@ -228,8 +229,9 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # self.btn_edit.setText("edit")
         # self.btn_reset.setText("reset")
         #
-        # # QModeMenu
-        # self.mmnu_props.set_content(self.mmnu_props_content)
+        # QModeMenu
+        self.mmnu_props.set_content(self.gsv_props_wgt)
+        self.mmnu_props.build()
         # mgprop_setup = {
         #     GSVPropertiesWidget.status_editable: [
         #         self.ttlb_props_hd_edit,
@@ -262,7 +264,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.lyt_m.addWidget(self.btn_update)
         # self.lyt_m.addWidget(self.ttlb_header)
         self.lyt_m.addWidget(self.tw1)
-        # self.lyt_m.addWidget(self.mmnu_props)
+        self.lyt_m.addWidget(self.mmnu_props)
 
         # ==============
         # Connections
@@ -296,8 +298,9 @@ class GSVDashboardEditor(QtWidgets.QWidget):
 
         st_gsvs = self.__node.get_gsvs(mode=parse_mode)
         for st_gsv in st_gsvs:
-            qtwi = TreeWidgetGSVItem(st_gsv=st_gsv, parent=self.tw1)
+            qtwi = TreeWidgetItemGSV(st_gsv=st_gsv, parent=self.tw1)
 
+        self.__tw_selection_changed()
         logger.debug(
             "[GSVDashboardEditor][__tw_update] Finished."
         )
@@ -314,7 +317,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             return
 
         # update the properties
-        # self.gsv_props_wgt.set_data(gsv_data)
+        self.gsv_props_wgt.set_data(gsv_data)
 
         logger.debug(
             "[GSVDashboardEditor][__lw_selection_changed] Finished."
@@ -330,7 +333,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         Returns:
             SuperToolGSV or None:
         """
-        selection = self.tw1.selectedItems()  # type: List[TreeWidgetGSVItem]
+        selection = self.tw1.selectedItems()  # type: List[TreeWidgetItemGSV]
         if not selection:
             logger.debug(
                 "[GSVDashboardEditor][__tw_selected_get_gsv_data] Called but"
@@ -339,7 +342,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             return
 
         # selection in the GUI can only be done on one item anyway
-        selection = selection[0]  # type: TreeWidgetGSVItem
+        selection = selection[0]  # type: TreeWidgetItemGSV
 
         gsv_data = selection.gsv  # type: SuperToolGSV
         if not gsv_data:
