@@ -1,12 +1,10 @@
 """
 
 """
-import json
 import logging
-from functools import partial
 
 try:
-    from typing import List
+    from typing import List, Optional, Tuple, Union
 except ImportError:
     pass
 
@@ -22,7 +20,7 @@ from Katana import (
 
 
 from . import c
-from . import Editor_resources as resources
+from . import EditorResources as resources
 # import for type hints only
 try:
     from .Node import GSVDashboardNode, SuperToolGSV
@@ -106,7 +104,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         """
 
         # these are the events that will update the treewidget
-        events4lwupdate = [
+        events4twupdate = [
             "port_disconnect",
             "port_connect",
             "parameter_finalizeValue",
@@ -114,7 +112,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             "node_setBypassed",
             "node_setName"
         ]
-        for event in events4lwupdate:
+        for event in events4twupdate:
             Utils.EventModule.RegisterCollapsedHandler(
                 self.__process_event,
                 event,
@@ -178,7 +176,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.btn_update = QtWidgets.QPushButton()
         self.cbb_source = QtWidgets.QComboBox()
         self.tw1 = QtWidgets.QTreeWidget()
-        # self.mg_prop = QModMenu()
+        # self.mmnu_props = QModMenu()
         # self.ttlb_props_hd_locked = QTitleBar()
         # self.ttlb_props_hd_reset = QTitleBar()
         # self.ttlb_props_hd_edit = QTitleBar()
@@ -192,19 +190,27 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # ==============
 
         # treewidget
-        self.tw1.setHeaderHidden(True)
-        self.tw1.setColumnCount(TreeWidgetGSVItem.column_number)
-        self.tw1.setMinimumHeight(200)
+        # self.tw1.setHeaderHidden(True)
+        self.tw1.setColumnCount(TreeWidgetGSVItem.column_number())
+        self.tw1.setMinimumHeight(150)
         self.tw1.setAlternatingRowColors(True)
         self.tw1.setSortingEnabled(True)
         self.tw1.setUniformRowHeights(True)
         self.tw1.setRootIsDecorated(False)
         self.tw1.setItemsExpandable(False)
-        self.tw1.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
+        # select only one row at a time
+        self.tw1.setSelectionMode(self.tw1.SingleSelection)
+        # select only rows
+        self.tw1.setSelectionBehavior(self.tw1.SelectRows)
+        # remove dotted border on columns
+        self.tw1.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.tw1.setColumnWidth(0, TreeWidgetGSVItem.column_size(0)[0])
+        self.tw1.setColumnWidth(1, TreeWidgetGSVItem.column_size(1)[0])
+        self.tw1.setHeaderLabels(TreeWidgetGSVItem.column_labels())
         tw1_header = self.tw1.header()
         # The user can resize the section
         tw1_header.setSectionResizeMode(tw1_header.Interactive)
-        tw1_header.resizeSections(tw1_header.ResizeToContents)
+
         # # QPushButton
         self.btn_update.setIcon(
             QtGui.QIcon(
@@ -217,7 +223,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # self.btn_reset.setText("reset")
         #
         # # QModeMenu
-        # self.mg_prop.set_content(self.mg_prop_content)
+        # self.mmnu_props.set_content(self.mmnu_props_content)
         # mgprop_setup = {
         #     GSVPropertiesWidget.status_editable: [
         #         self.ttlb_props_hd_edit,
@@ -234,13 +240,13 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # }
         # for _status, _widgets in mgprop_setup.items():
         #
-        #     self.mg_prop.add_status(
+        #     self.mmnu_props.add_status(
         #         _status,
         #         replace_default=True,
         #         set_to_current=True
         #     )
-        #     self.mg_prop.set_header_widget(_widgets[0])
-        #     self.mg_prop.set_footer_widget(_widgets[1])
+        #     self.mmnu_props.set_header_widget(_widgets[0])
+        #     self.mmnu_props.set_footer_widget(_widgets[1])
         #     continue
 
         # ==============
@@ -250,7 +256,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.lyt_m.addWidget(self.btn_update)
         # self.lyt_m.addWidget(self.ttlb_header)
         self.lyt_m.addWidget(self.tw1)
-        # self.lyt_m.addWidget(self.mg_prop)
+        # self.lyt_m.addWidget(self.mmnu_props)
 
         # ==============
         # Connections
@@ -268,7 +274,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # # the QMenuGroup should have already the status built upon the ones
         # # available in GSVPropertiesWidget so it's safe to do this
         # self.gsv_props_wgt.status_changed_sgn.connect(
-        #     self.mg_prop.set_status_current
+        #     self.mmnu_props.set_status_current
         # )
 
         return
@@ -372,22 +378,68 @@ class TreeWidgetGSVItem(QtWidgets.QTreeWidgetItem):
             SuperToolGSV.statuses.local_set_this: resources.Icons.status_l_edited,
             SuperToolGSV.statuses.local_not_set: resources.Icons.status_l_viewed,
             SuperToolGSV.statuses.local_set: resources.Icons.status_l_locked,
+        },
+        "sorting": {
+            SuperToolGSV.statuses.global_set: 0,
+            SuperToolGSV.statuses.local_set: 1,
+            SuperToolGSV.statuses.local_set_this: 2,
+            SuperToolGSV.statuses.local_not_set: 3,
+            SuperToolGSV.statuses.global_not_set: 4,
         }
     }
 
-    column_number = 3
-    row_height = 30
-    column0_width = 0
-    column1_width = 200
+    __column_config = {
+        "all": {
+            "width": None,
+            "height": 30,
+        },
+        0: {
+            "label": "",
+            "width": 0,
+            "height": None,
+        },
+        1: {
+            "label": "Name",
+            "width": 200,
+            "height": None,
+        },
+        2: {
+            "label": "Values",
+            "width": None,  # fill all the space left
+            "height": None,
+        }
+    }
 
     def __init__(self, st_gsv, parent):
 
         super(TreeWidgetGSVItem, self).__init__(parent)
         self.gsv = st_gsv
+        self.status = self.__status_config["sorting"].get(self.gsv.status)
 
         self.__build()
 
         return
+
+    def __lt__(self, other):
+        """
+        Override < operator for sorting columns properly.
+
+        Args:
+            other(TreeWidgetGSVItem):
+
+        Returns:
+            bool: True if other is bigger than this instance.
+        """
+
+        tw = self.treeWidget()
+        if not tw:
+            sorted_column = 0
+        else:
+            sorted_column = tw.sortColumn()
+
+        lt_this = self.__sorted_column_data(sorted_column)
+        lt_other = other.__sorted_column_data(sorted_column)
+        return lt_this < lt_other
 
     def __build(self):
 
@@ -404,28 +456,43 @@ class TreeWidgetGSVItem(QtWidgets.QTreeWidgetItem):
         column = 0
         self.setTextAlignment(column, QtCore.Qt.AlignCenter)
         self.setToolTip(column, "Status: {}".format(self.gsv.status))
-        self.setSizeHint(
-            column, QtCore.QSize(self.column0_width, self.row_height)
-        )
+        data = self.__status_config["sorting"].get(self.gsv.status, 0)
+        self.setData(column, QtCore.Qt.UserRole, data)
 
         # column: gsv name
         column = 1
         self.setText(column, self.gsv.name)
         self.setTextAlignment(column, QtCore.Qt.AlignVCenter)
         self.setToolTip(column, "GSV Name")
-        self.setSizeHint(
-            column, QtCore.QSize(self.column1_width, self.row_height)
-        )
+        data = self.text(column)
+        self.setData(column, QtCore.Qt.UserRole, data)
 
         # column: gsv values
         column = 2
-        self.setText(column, list2str(self.gsv.get_all_values()))
+        text = self.gsv.get_all_values()
+        self.setText(column, list2str(text))
         self.setTextAlignment(column, QtCore.Qt.AlignLeft)
         self.setToolTip(column, "Values the GSV can take.")
         self.setTextAlignment(column, QtCore.Qt.AlignVCenter)
+        data = len(text)
+        self.setData(column, QtCore.Qt.UserRole, data)
 
+        # all columns should be colored
         self.__update_columns_color([0, 1, 2])
+        # only first column hold the icon
         self.__update_columns_icon([0])
+        self.__update_size_hints()
+
+        return
+
+    def __update_size_hints(self):
+
+        for column_index in range(self.column_number()):
+
+            width, height = self.column_size(column_index)
+            if width is not None and height is not None:
+                self.setSizeHint(column_index, QtCore.QSize(width, height))
+            continue
 
         return
 
@@ -476,6 +543,62 @@ class TreeWidgetGSVItem(QtWidgets.QTreeWidgetItem):
 
         return
 
+    def __sorted_column_data(self, column):
+        """
+        Return the value used for sorting different TreeWidgetGSVItem
+
+        Args:
+            column(int):
+
+        Returns:
+            object suporting the < operator. Type depends of the sorting
+                function return value.
+        """
+        return self.data(column, QtCore.Qt.UserRole)
+
+    @classmethod
+    def column_size(cls, column):
+        """
+        Return the column size specified in __column_config for the given
+        column or for "all" not None.
+
+        Args:
+            column(int):
+
+        Returns:
+            tuple[int or None, int or None]:
+                tuple of width, height where both of them can be None.
+        """
+
+        column_data = cls.__column_config.get(column)
+        if column_data is None:
+            raise ValueError(
+                "[TreeWidgetGSVItem][column_size] Column <{}> not found"
+                " in __column_config".format(column)
+            )
+
+        # return the "all" key if not None first.
+        width = cls.__column_config["all"]["width"] or column_data["width"]
+        height = cls.__column_config["all"]["height"] or column_data["height"]
+        return width, height
+
+    @classmethod
+    def column_number(cls):
+        return len(cls.__column_config.keys()) - 1
+
+    @classmethod
+    def column_labels(cls):
+        """
+        Returns:
+            list of str:
+                list of labels to use for each column
+        """
+        out = list()
+        for index in range(cls.column_number()):
+            v = cls.__column_config[index]["label"]  # type: str
+            out.append(v)
+        return out
+
 
 class GSVPropertiesWidget(QtWidgets.QWidget):
     """
@@ -506,7 +629,11 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         self.__data = None  # type: SuperToolGSV
         self.__edited = False
 
-        self.cbb_value = None  # type: QtWidgets.QComboBox
+        self.lyt = None
+        self.lyt_top = None
+        self.lbl_name = None
+        self.cbb_value = None
+        self.tw_nodes = None
 
         self.__ui_cook()
 
@@ -527,13 +654,35 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         # ==============
         self.lbl_name = QtWidgets.QLabel()
         self.cbb_value = QtWidgets.QComboBox()
-        self.lw_nodes = QtWidgets.QListWidget()
+        self.tw_nodes = QtWidgets.QTreeWidget()
 
         # ==============
         # Modify Widgets
         # ==============
         self.cbb_value.currentIndexChanged.connect(self.__value_changed)
         self.cbb_value.setEditable(False)
+        # treewidget
+        # self.tw1.setHeaderHidden(True)
+        self.tw_nodes.setColumnCount(TreeWidgetGSVItem.column_number())
+        self.tw_nodes.setMinimumHeight(150)
+        self.tw_nodes.setAlternatingRowColors(True)
+        self.tw_nodes.setSortingEnabled(True)
+        self.tw_nodes.setUniformRowHeights(True)
+        self.tw_nodes.setRootIsDecorated(False)
+        self.tw_nodes.setItemsExpandable(False)
+        # select only one row at a time
+        self.tw_nodes.setSelectionMode(self.tw1.SingleSelection)
+        # select only rows
+        self.tw_nodes.setSelectionBehavior(self.tw1.SelectRows)
+        # remove dotted border on columns
+        self.tw_nodes.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.tw_nodes.setColumnWidth(0, TreeWidgetGSVItem.column_size(0)[0])
+        self.tw_nodes.setColumnWidth(1, TreeWidgetGSVItem.column_size(1)[0])
+        self.tw_nodes.setHeaderLabels(TreeWidgetGSVItem.column_labels())
+        tw_nodes_header = self.tw_nodes.header()
+        # The user can resize the section
+        tw_nodes_header.setSectionResizeMode(tw_nodes_header.Interactive)
+
 
         # ==============
         # Modify Layouts
@@ -541,7 +690,7 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         self.lyt_top.addWidget(self.lbl_name)
         self.lyt_top.addWidget(self.cbb_value)
         self.lyt.addLayout(self.lyt_top)
-        self.lyt.addWidget(self.lw_nodes)
+        self.lyt.addWidget(self.tw_nodes)
         self.setLayout(self.lyt)
 
         return
@@ -698,6 +847,7 @@ class QTitleBar(QtWidgets.QWidget):
         return
 
 
+# noinspection PyArgumentList
 class QModMenu(QtWidgets.QWidget):
     """
     Container widget with a header and a footer widget. In between you have a
@@ -714,20 +864,111 @@ class QModMenu(QtWidgets.QWidget):
 
     Header and footer should be horizontally shaped.
     The content and footer widget are optional.
+
+    Attributes:
+        status(any):
+            Currently active status.
+            Can also be queried via get_status_current()
+        __content(QtWidgets.QWidget): content widget
+        __statuses(dict of dict): dict of possible statuses with their
+            corresponding widgets.
+
     """
+
+    __default_status = {
+        "header": None,  # type: List[QtWidgets.QWidget]
+        "footer": None,  # type: List[QtWidgets.QWidget]
+    }
 
     def __init__(self, parent=None):
 
         super(QModMenu, self).__init__(parent)
 
         self.__content = None  # type: QtWidgets.QWidget
-        self.__status = {
-            "default": {
-                "header": None,  # type: List[QtWidgets.QWidget]
-                "footer": None,  # type: List[QtWidgets.QWidget]
-            }
-        }
+        self.__statuses = None
+        self.status = None
 
+        self.add_status("default")
+
+        return
+
+    """---
+        UI
+    """
+
+    def build(self):
+
+        self.lyt = QtWidgets.QVBoxLayout()
+        self.lyt.setSpacing(0)
+
+        header = self.get_header_widget()
+        if header:
+            self.lyt.addWidget(header)
+
+        content = self.get_content()
+        if content:
+            self.lyt.addWidget(content)
+
+        footer = self.get_footer_widget()
+        if footer:
+            self.lyt.addWidget(footer)
+
+        self.setLayout(self.lyt)
+
+        logger.debug(
+            "[QModMenu][build] Finished for status=<{}>.".format(self.status)
+        )
+        return
+
+    def set_content_hidden(self, hidden):
+        """
+        Args:
+            hidden(bool):
+                True to hide the content widget. False to make it visible.
+        """
+        self.get_content().setHidden(hidden)
+        return
+
+    """-----------
+        Status API
+    """
+
+    def __check_status_exists_deco(func):
+        """
+        Hacky way to have a decorator in the class. Could be defined outside
+        this class (without the __ prefix) but just cleaner to have it inside.
+        """
+
+        def wrapper(*args, **kwargs):
+
+            self = args[0]
+            status = kwargs.get("status_id") or args[1]
+            self.is_status_existing(status, raise_error=True)
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    @__check_status_exists_deco
+    def __reset_status(self, status_id):
+        self.__statuses[status_id] = self.__default_status
+        return
+
+    @__check_status_exists_deco
+    def __del_status(self, status_id):
+        del self.__statuses[status_id]
+        return
+
+    @__check_status_exists_deco
+    def set_status_current(self, status_id):
+        """
+
+        Args:
+            status_id(any): o
+                object used to indentify the status
+
+        Devnote: Can only take on argument !!
+        """
+        self.status = status_id
         return
 
     def add_status(self, status_id, replace_default=False, set_to_current=True):
@@ -742,38 +983,155 @@ class QModMenu(QtWidgets.QWidget):
                 If true, also change the current status to the newly added one.
 
         """
-        pass
+        if replace_default:
+            self.__del_status("default")
 
-    def set_status_current(self, status_id):
-        """
+        self.__statuses[status_id] = self.__default_status
 
-        Args:
-            status_id(any): o
-                object used to indentify the status
+        if set_to_current:
+            self.set_status_current(status_id=status_id)
 
-        Can only take on argument !!
-        """
-        pass
+        return
 
     def get_status_current(self):
-        pass
+        return self.status
 
     def get_status_list(self):
-        pass
+        return list(self.__statuses.keys())
 
-    def reset_status(self, status=None, reset_all=False):
+    def is_status_existing(self, status_id, raise_error=False):
+        """
+        Args:
+            status_id(any):
+            raise_error(bool):
+                If True raise an error if the status is not registered .
+
+        Returns:
+            bool: True if the status is registered else False.
+        """
+        result = status_id in self.get_status_list()
+        if not result and raise_error:
+            raise ValueError(
+                "[is_status_existing] status_id argument <{}> passed is "
+                "not registered in the available statuses.".format(status_id)
+            )
+        return result
+
+    def remove_status(self, status_id=None, all_status=False):
+        """
+        Args:
+            status_id(any or None): If None passed, use the current status.
+            all_status(bool): True to reset all statuses.
+        """
+
+        # if no status_id passed use the current one
+        if not status_id:
+            status_id = self.get_status_current()
+        status_id = [status_id]
+
+        if all_status:
+            status_id = self.get_status_list()
+
+        for __status in status_id:
+            self.__del_status(__status)
+
+        # if we have removed all the statuses, add back the default one.
+        if not self.get_status_list():
+            self.add_status("default")
+
+        return
+
+    def reset_status(self, status_id=None, all_status=False):
+        """
+        Args:
+            status_id(any or None): If None passed, use the current status.
+            all_status(bool): True to reset all statuses.
+        """
+
+        # if no status_id passed use the current one
+        if not status_id:
+            status_id = self.get_status_current()
+        status_id = [status_id]
+
+        if all_status:
+            status_id = self.get_status_list()
+
+        for __status in status_id:
+            self.__reset_status(__status)
+
         return
 
     def set_content(self, content_widget):
-        pass
+        """
+        Content ils always the same, no matter the current status.
+
+        Args:
+            content_widget(QtWidgets.QWidget):
+        """
+        self.__content = content_widget
+        return
 
     def get_content(self):
+        """
+        Returns:
+            QtWidgets.QWidget:
+                Widget used as content.
+        """
         return self.__content
 
-    def set_header_widget(self, widget, status=None):
-        pass
+    def set_header_widget(self, widget, status_id=None):
+        """
+        Args:
+            widget(QtWidgets.QWidget):
+            status_id(any or None): If None, use the current status.
+        """
 
-    def set_footer_widget(self, widget, status=None):
-        # Probably not implemented for GSVDashboard
-        pass
+        # if no status_id passed use the current one
+        if not status_id:
+            status_id = self.get_status_current()
 
+        self.is_status_existing(status_id, raise_error=True)
+        self.__statuses[status_id]["header"] = widget
+
+        return
+
+    def get_header_widget(self, status_id=None):
+        """
+        Args:
+            status_id(any or None): If None, use the current status.
+        """
+
+        # if no status_id passed use the current one
+        if not status_id:
+            status_id = self.get_status_current()
+
+        self.is_status_existing(status_id, raise_error=True)
+        return self.__statuses[status_id]["header"]
+
+    def set_footer_widget(self, widget, status_id=None):
+        """
+        Args:
+            widget(QtWidgets.QWidget):
+            status_id(any or None): If None, use the current status.
+        """
+
+        # if no status_id passed use the current one
+        if not status_id:
+            status_id = self.get_status_current()
+
+        self.__statuses[status_id]["footer"] = widget
+
+        return
+
+    def get_footer_widget(self, status_id=None):
+        """
+        Args:
+            status_id(any or None): If None, use the current status.
+        """
+
+        # if no status_id passed use the current one
+        if not status_id:
+            status_id = self.get_status_current()
+
+        self.is_status_existing(status_id, raise_error=True)
+        return self.__statuses[status_id]["footer"]
