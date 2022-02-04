@@ -368,7 +368,7 @@ class SuperToolGSV(object):
         Returns:
             list of GSVNode:
                 List of nodes that are using this GSV. List content depends
-                of parsing settings passed to the super-tool.
+                    of parsing settings passed to the super-tool.
         """
         return self.__data.nodes
 

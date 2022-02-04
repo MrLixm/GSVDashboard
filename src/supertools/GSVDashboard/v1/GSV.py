@@ -189,6 +189,8 @@ class GSVNode(object):
         gsv_values: Value(s) the GSV can take
 
     """
+    action_getter = "getter"
+    action_setter = "setter"
 
     def __init__(self, node, scene):
 
@@ -220,6 +222,14 @@ class GSVNode(object):
 
     def __str__(self):
         return "{}({})".format(self.node.getName(), self.type)
+
+    @property
+    def node_name(self):
+        """
+        Returns:
+            str: Name of the Katana node.
+        """
+        return self.node.getName()
 
     @property
     def is_setter(self):
