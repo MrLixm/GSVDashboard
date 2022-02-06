@@ -537,7 +537,7 @@ class LabeledWidget(QtWidgets.QWidget):
 
     """
 
-    info_icon_size = 8
+    info_icon_size = 10
     txt_font_size = 10
 
     def __init__(self, content=None, text=None, info_text=None):
@@ -603,6 +603,11 @@ class LabeledWidget(QtWidgets.QWidget):
         )
 
         qpixmap = QtGui.QPixmap(resources.Icons.info)
+        qpixmap = qpixmap.scaled(
+            self.info_icon_size,
+            self.info_icon_size,
+            transformMode=QtCore.Qt.SmoothTransformation
+        )
         qicon = QtGui.QIcon(qpixmap)
         self.info.setIcon(qicon)
         # self.info.setEnabled(False)
@@ -613,6 +618,7 @@ class LabeledWidget(QtWidgets.QWidget):
         # ==============
         # Modify Layouts
         # ==============
+        self.lyt_text.setAlignment(self.info, QtCore.Qt.AlignCenter)
         self.lyt_text.addWidget(self.info)
         self.lyt_text.addWidget(self.lbl)
 
@@ -691,25 +697,17 @@ class ComboBoxGSVValue(QtWidgets.QComboBox):
         self.currentTextChanged.connect(self.setCurrentText)
         return
 
-    def setCurrentIndex(self, index):
-        print(
-            "[ComboBoxGSVValue][setCurrentText] {}, locked={}"
-            "".format(index, self.locked)
-        )
-        if self.locked:
-            return
-        super(ComboBoxGSVValue, self).setCurrentIndex(index)
-        return
+    def changeEvent(self, e):
+        print("changeEvent")
+        super(ComboBoxGSVValue, self).changeEvent(e)
 
-    def setCurrentText(self, text):
-        print(
-            "[ComboBoxGSVValue][setCurrentText] {}, locked={}"
-            "".format(text, self.locked)
-        )
-        if self.locked:
-            return
-        super(ComboBoxGSVValue, self).setCurrentText(text)
-        return
+    def focusOutEvent(self, e):
+        print("focusOutEvent")
+        super(ComboBoxGSVValue, self).focusOutEvent(e)
+
+    def focusInEvent(self, e):
+        print("focusInEvent")
+        super(ComboBoxGSVValue, self).focusInEvent(e)
 
 
 """
