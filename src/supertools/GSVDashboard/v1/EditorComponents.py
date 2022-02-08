@@ -32,7 +32,8 @@ __all__ = [
     "GSVPropertiesWidget",
     "QTitleBar",
     "ResetButton",
-    "EditButton"
+    "EditButton",
+    "GSVTreeWidget"
 ]
 
 logger = logging.getLogger("{}.EditorComponents".format(c.name))
@@ -123,7 +124,7 @@ class TreeWidgetItemBase(QtWidgets.QTreeWidgetItem):
         return lt_this < lt_other
 
     @abstractmethod
-    def __build(self):
+    def __cook(self):
         # each column must implement a QtCore.Qt.UserRole data attribute !
         # Used for sorting ! The value should be supported by the < operator.
         raise NotImplementedError(
@@ -222,14 +223,12 @@ class TreeWidgetItemBase(QtWidgets.QTreeWidgetItem):
                 " in _column_config".format(cls.__name__, column)
             )
         # return the "all" key if not None first.
-        width = cls._column_config["all"]["width"] or column_data["width"]
-        height = cls._column_config["all"]["height"] or column_data["height"]
-        if width is None or height is None:
-            logger.debug(
-                "[{}][column_size] Warning, returned size for column <{}> "
-                "will have a None value: {}"
-                "".format(cls.__name__, column, (width, height))
-            )
+        width = (
+            cls._column_config["all"]["width"] or column_data["width"]
+        )  # type: Optional[int]
+        height = (
+            cls._column_config["all"]["height"] or column_data["height"]
+        )  # type: Optional[int]
         return width, height
 
     @classmethod
@@ -318,11 +317,11 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
         self.gsv = st_gsv
         self.status = self.gsv.status
 
-        self.__build()
+        self.__cook()
 
         return
 
-    def __build(self):
+    def __cook(self):
 
         # column: icon
         column = 0
@@ -354,6 +353,11 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
         # only first column hold the icon
         self._update_columns_icon([0])
         self._update_size_hints()
+
+        logger.debug(
+            "[{}][__cook] Finished."
+            "".format(self.__class__.__name__)
+        )
 
         return
 
@@ -416,11 +420,11 @@ class TreeWidgetItemGSVNode(TreeWidgetItemBase):
         self.gsv_node = gsv_node
         self.status = self.gsv_node.gsv_action
 
-        self.__build()
+        self.__cook()
 
         return
 
-    def __build(self):
+    def __cook(self):
 
         # column: icon
         column = 0
@@ -454,6 +458,143 @@ class TreeWidgetItemGSVNode(TreeWidgetItemBase):
         self._update_size_hints()
 
         return
+
+
+class NodeTreeWidget(QtWidgets.QTreeWidget):
+    """
+    TreeWidget used to hold GSVNodes.
+    Children are TreeWidgetItemGSVNode instances.
+    """
+
+    def __init__(self):
+        super(NodeTreeWidget, self).__init__()
+        self.__cook()
+        return
+
+    def __cook(self):
+
+        style = """
+        QTreeWidget {
+            border: none;
+            border-radius: 3px;
+        }    
+        """
+
+        # treewidget
+        self.setStyleSheet(style)
+        self.setHeaderHidden(True)
+        self.setColumnCount(TreeWidgetItemGSVNode.column_number())
+        self.setMinimumHeight(60)
+        self.setAlternatingRowColors(False)
+        self.setSortingEnabled(True)
+        self.setUniformRowHeights(True)
+        self.setRootIsDecorated(False)
+        self.setItemsExpandable(False)
+        # select only one row at a time
+        self.setSelectionMode(self.SingleSelection)
+        # select only rows
+        self.setSelectionBehavior(self.SelectRows)
+        # remove dotted border on columns
+        self.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.setColumnWidth(0, TreeWidgetItemGSVNode.column_size(0)[0])
+        self.setHeaderLabels(TreeWidgetItemGSVNode.column_labels())
+
+        header = self.header()  # type: QtWidgets.QHeaderView
+        header.setSectionResizeMode(header.ResizeToContents)
+        self.customContextMenuRequested[QtCore.QPoint].connect(
+            self.__contextmenu
+        )
+
+        return
+
+    def __contextmenu(self, point):
+        """
+        Create a context menu at the given point.
+
+        Args:
+            point(QtCore.QPoint):
+
+        Returns:
+            bool: True if created
+        """
+
+        # Infos about the node selected.
+        index = self.indexAt(point)
+        if not index.isValid():
+            return False
+
+        selected_item = self.selectedItems()[0]  # type: TreeWidgetItemGSVNode
+
+        # Building menu
+        menu = QtWidgets.QMenu()
+
+        act_select = QtWidgets.QAction("Select and Edit the Node")
+        act_select.triggered.connect(selected_item.gsv_node.select_edit)
+        self.addAction(act_select)
+
+        menu.exec_(QtGui.QCursor.pos())
+
+        return True
+
+
+class GSVTreeWidget(QtWidgets.QTreeWidget):
+    def __init__(self):
+        super(GSVTreeWidget, self).__init__()
+        self.__cook()
+
+    def __cook(self):
+
+        self.setColumnCount(TreeWidgetItemGSV.column_number())
+        self.setMinimumHeight(150)
+        self.setAlternatingRowColors(True)
+        self.setSortingEnabled(True)
+        self.setUniformRowHeights(True)
+        self.setRootIsDecorated(False)
+        self.setItemsExpandable(False)
+        # select only one row at a time
+        self.setSelectionMode(self.SingleSelection)
+        # select only rows
+        self.setSelectionBehavior(self.SelectRows)
+        # remove dotted border on columns
+        self.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.setColumnWidth(0, TreeWidgetItemGSV.column_size(0)[0])
+        self.setColumnWidth(1, TreeWidgetItemGSV.column_size(1)[0])
+        self.setHeaderLabels(TreeWidgetItemGSV.column_labels())
+        header = self.header()
+        # The user can resize the section
+        header.setSectionResizeMode(header.Interactive)
+
+        return
+
+    def get_selected_gsv(self):
+        """
+        Return the SuperToolGSV instance for the currently selected GSV in
+        the treewidget.
+
+        Returns:
+            SuperToolGSV or None: Should in theory never return None
+        """
+        selection = self.selectedItems()  # type: List[TreeWidgetItemGSV]
+        if not selection:
+            logger.debug(
+                "[{}][__tw_selected_get_gsv_data] Called but"
+                "self.selectedItems() return None ?"
+                "".format(self.__class__.__name__)
+            )
+            return
+
+        # selection in the GUI can only be done on one item anyway
+        selection = selection[0]  # type: TreeWidgetItemGSV
+
+        gsv_data = selection.gsv  # type: SuperToolGSV
+        if not gsv_data:
+            logger.error(
+                "[{}}][__tw_get_gsv_data] No gsv data found "
+                "for the currently selected tree widget item <{}>. This is"
+                "not supposed to happens ?!"
+                "".format(self.__class__.__name__, selection)
+            )
+        return gsv_data
 
 
 """ ---------------------------------------------------------------------------
@@ -1019,13 +1160,25 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         [ node2                 ]
         [ node3                 ]
 
+    Different statuses are:
+
+    - locked : the GSV can't be modify in any way. Read only.
+
+    - editable : the UI is visually locked but can be switched to edited.
+
+    - edited : the user can change the GSV Values
+
 
     Attributes:
-        value_changed_sgn:
+        value_changed_sgn(SuperToolGSV, Optional[str]):
             qt signal emitted when the USER change the value of the ComboBox
         status_changed_sgn:
             qt signal emitted when the widget change status, value emitted is
-            one of the 3 <status_XXX> attributes
+            one of the 3 <status_XXX> attributes. First value is the new status
+            , second is the previous status ebfore it was changed.
+        unedited_sgn:
+            qt signal emitted when the widget stop being edited (was reset).
+            i.e you go from edited to editable
 
     Notes:
         widget being instance of LabeledWidget need to be accessed through
@@ -1033,20 +1186,20 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
 
     """
 
-    value_changed_sgn = QtCore.pyqtSignal(SuperToolGSV, str)
-    status_changed_sgn = QtCore.pyqtSignal(str)
+    value_changed_sgn = QtCore.pyqtSignal(object, object)
+    unedited_sgn = QtCore.pyqtSignal(object)
+    status_changed_sgn = QtCore.pyqtSignal(str, str)
 
     status_editable = "editable"
     status_edited = "edited"
-    status_locked = "locked"  # =read only
+    status_locked = "locked"  # = read only
 
     def __init__(self):
 
         super(GSVPropertiesWidget, self).__init__()
 
-        self._status = self.status_locked  # default status is read only
+        self.__status = self.status_locked  # default status is read only
         self.__data = None  # type: SuperToolGSV
-        self.__edited = False
 
         self.lyt = None
         self.lyt_top = None
@@ -1062,51 +1215,85 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
     def status(self):
         return self._status
 
-    @status.setter
-    def status(self, status_value):
+    @property
+    def _status(self):
+        return self.__status
+
+    @_status.setter
+    def _status(self, new_status):
         """
-        Change the current Status of the widget
+        Change current status and emit signal if there was an actual change.
+        Private property cause we don't want to be able to set the status
+        directly from outside.
 
         Args:
-            status_value(str):
+            new_status(str):
+        """
+        before_status = self.__status
+        self.__status = new_status
+        # check if the update actually changed something
+        if before_status == new_status:
+            # don't emit signal if no change
+            return
+        self.status_changed_sgn.emit(new_status, before_status)
+        return
+
+    def set_data(self, gsv_data):
+        """
+        Set the GSV data this widget represents.
+        Handle the redraw of the ui with the new data.
+
+        Args:
+            gsv_data(SuperToolGSV):
 
         """
-        if status_value not in [
-            self.status_edited,
-            self.status_locked,
-            self.status_editable
-        ]:
-            raise ValueError(
-                "Value <{}> passed is not supported.".format(status_value)
-            )
-        self._status = status_value
 
-    @property
-    def edited(self):
-        return self.__edited
-
-    @edited.setter
-    def edited(self, edited_value):
-        self.__edited = edited_value
+        self.__data = gsv_data
         self.__update_status()
-        return
-
-    def set_editable(self):
-        """
-        Set the status to <editable> if the previous status was <locked>
-        """
-        if self.status == self.status_locked:
-            self.status = self.status_editable
-        return
-
-    def reset(self):
-        """
-        Reset the interface as it was never modified by the user.
-        """
-        # order is important
-        self.edited = False
+        # update the ui with the new data
         self.__ui_bake()
 
+        return
+
+    def set_edited(self):
+        """
+        If the widget is editable, turn it into edited and emit the
+        corresponding signals.
+        """
+
+        if not self.status == self.status_editable:
+            logger.warning(
+                "[{}][set_edited] Called but status is not editable but <{}>."
+                "".format(self.__class__.__name__, self.status)
+            )
+            return
+
+        self._status = self.status_edited
+        self.__ui_bake()
+        self.__value_changed()  # call __update_status
+        return
+
+    def set_unedited(self):
+        """
+        Reset the interface as it was never modified by the user.
+        If the widget was being edited, it is no more.
+
+        Emits:
+            reseted_sgn(SuperToolGSV): emit the current GSV represented
+                as SuperToolGSV instance.
+        """
+        # we do not want to unedit if we are already unedited.
+        if not self.status == self.status_edited:
+            logger.warning(
+                "[{}][set_unedited] Called, but _edited is already False."
+                "".format(self.__class__.__name__)
+            )
+            return
+
+        # order is important
+        self._status = self.status_editable
+        self.__ui_bake()
+        self.unedited_sgn.emit(self.__data)
         return
 
     def __ui_cook(self):
@@ -1124,13 +1311,6 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
             padding: 3px;
         """.format(str(color_disabled.getRgb()[:-1])[1:][:-1])
 
-        style_tw = """
-        QTreeWidget {
-            border: none;
-            border-radius: 3px;
-        }    
-        """
-
         # ==============
         # Create Layouts
         # ==============
@@ -1142,7 +1322,7 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         # ==============
         self.lbl_name = LabeledWidget(QtWidgets.QLabel())
         self.cbb_value = LabeledWidget(QtWidgets.QComboBox())
-        self.tw_nodes = LabeledWidget(QtWidgets.QTreeWidget())
+        self.tw_nodes = LabeledWidget(NodeTreeWidget())
 
         # ==============
         # Modify Widgets
@@ -1162,31 +1342,6 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         )
         # treewidget
         self.tw_nodes.set_text("Linked Nodes")
-        self.tw_nodes.content.setStyleSheet(style_tw)
-        self.tw_nodes.content.setHeaderHidden(True)
-        self.tw_nodes.content.setColumnCount(
-            TreeWidgetItemGSVNode.column_number()
-        )
-        self.tw_nodes.content.setMinimumHeight(100)
-        self.tw_nodes.content.setAlternatingRowColors(False)
-        self.tw_nodes.content.setSortingEnabled(True)
-        self.tw_nodes.content.setUniformRowHeights(True)
-        self.tw_nodes.content.setRootIsDecorated(False)
-        self.tw_nodes.content.setItemsExpandable(False)
-        # select only one row at a time
-        self.tw_nodes.content.setSelectionMode(
-            self.tw_nodes.content.SingleSelection
-        )
-        # select only rows
-        self.tw_nodes.content.setSelectionBehavior(
-            self.tw_nodes.content.SelectRows
-        )
-        # remove dotted border on columns
-        self.tw_nodes.content.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.tw_nodes.content.setColumnWidth(0, TreeWidgetItemGSVNode.column_size(0)[0])
-        self.tw_nodes.content.setHeaderLabels(TreeWidgetItemGSVNode.column_labels())
-        tw_nodes_header = self.tw_nodes.content.header()  # type: QtWidgets.QHeaderView
-        tw_nodes_header.setSectionResizeMode(tw_nodes_header.ResizeToContents)
 
         # ==============
         # Modify Layouts
@@ -1201,7 +1356,7 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         # Setup Connections
         # =================
 
-        # onloy emit on user interaction
+        # only emit on user interaction
         self.cbb_value.content.activated.connect(self.__value_changed)
 
         return
@@ -1225,7 +1380,8 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         self.cbb_value.content.clear()
         self.cbb_value.content.addItems(self.__data.get_all_values())
         self.cbb_value.content.setCurrentText(self.__data.get_current_value())
-        if self.status == self.status_locked:
+        # cbb is enable only when the status is "edited"
+        if self.status != self.status_edited:
             self.cbb_value.content.setEnabled(False)
         else:
             self.cbb_value.content.setEnabled(True)
@@ -1260,38 +1416,29 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
 
         * ``__data`` : if locked
 
-        * ``__edited`` : if True or False
-
+        Emits:
+            status_changed_sgn:
+                If status is different from previous one.
         """
         if not self.__data:
             logger.warning(
                 "[GSVPropertiesWidget][update_status] Called but "
                 "self.__data is None."
             )
-            self.status = self.status_locked
+            self.__status = self.status_locked
             # return without emitting signal
             return
 
-        if self.__data.is_locked:
-            self.status = self.status_locked
+        if not self.__data.is_editable:
+            self._status = self.status_locked
 
         # The SuperTool already have a node that edit this GSV or this widget
         # is marked as edited :
-        elif self.__data.is_edited or self.__edited:
-            self.status = self.status_edited
-
-        elif not self.edited:
-            self.status = self.status_editable
+        elif self.__data.is_edited:
+            self._status = self.status_edited
 
         else:
-            # This should never happens
-            raise ValueError(
-                "Imposible to find a status for the GSVPropertiesWidget for"
-                "the GSV <{}>".format(self.__data.name)
-            )
-
-        # emit the new status (can be the same as previous one emitted)
-        self.status_changed_sgn.emit(self.status)
+            self._status = self.status_editable
 
         return
 
@@ -1300,30 +1447,14 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         To call when the user edit the ``value combobox``.
 
         Emits:
-            (tuple(SuperToolGSV, str or None)): current GSV data + new value set.
+            value_changed_sgn(tuple(SuperToolGSV, str)):
+                current GSV data + new value set.
 
         """
+        self._status = self.status_edited
         value = self.cbb_value.content.currentText()  # type: str
-        # value was originaly from a SuperToolGSV instance, safe to do this :
-        self.edited = True
         self.value_changed_sgn.emit(self.__data, value)
         return
 
-    def set_data(self, gsv_data):
-        """
-        Set the GSV data this widget represents.
-        Handle the redraw of the ui with the new data.
-
-        Args:
-            gsv_data(SuperToolGSV):
-
-        """
-
-        self.__data = gsv_data
-        self.__update_status()
-        # update the ui with the new data
-        self.reset()
-
-        return
 
 

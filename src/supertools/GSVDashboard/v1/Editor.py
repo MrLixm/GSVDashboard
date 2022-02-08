@@ -27,7 +27,8 @@ from .EditorComponents import (
     GSVPropertiesWidget,
     QTitleBar,
     ResetButton,
-    EditButton
+    EditButton,
+    GSVTreeWidget
 )
 # import for type hints only
 try:
@@ -183,7 +184,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.ttlb_header = QTitleBar()
         self.btn_update = QtWidgets.QPushButton()
         self.cbb_source = QtWidgets.QComboBox()
-        self.tw1 = QtWidgets.QTreeWidget()
+        self.tw1 = GSVTreeWidget()
         self.mmnu_props = QModMenu()
 
         # self.ttlb_props_hd_locked = QTitleBar()
@@ -197,28 +198,6 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # ==============
         # Modify Widgets
         # ==============
-
-        # treewidget
-        # self.tw1.setHeaderHidden(True)
-        self.tw1.setColumnCount(TreeWidgetItemGSV.column_number())
-        self.tw1.setMinimumHeight(150)
-        self.tw1.setAlternatingRowColors(True)
-        self.tw1.setSortingEnabled(True)
-        self.tw1.setUniformRowHeights(True)
-        self.tw1.setRootIsDecorated(False)
-        self.tw1.setItemsExpandable(False)
-        # select only one row at a time
-        self.tw1.setSelectionMode(self.tw1.SingleSelection)
-        # select only rows
-        self.tw1.setSelectionBehavior(self.tw1.SelectRows)
-        # remove dotted border on columns
-        self.tw1.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.tw1.setColumnWidth(0, TreeWidgetItemGSV.column_size(0)[0])
-        self.tw1.setColumnWidth(1, TreeWidgetItemGSV.column_size(1)[0])
-        self.tw1.setHeaderLabels(TreeWidgetItemGSV.column_labels())
-        tw1_header = self.tw1.header()
-        # The user can resize the section
-        tw1_header.setSectionResizeMode(tw1_header.Interactive)
 
         # # QPushButton
         self.btn_update.setIcon(
@@ -248,10 +227,10 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         #         self.ttlb_props_footer
         #     ],
         # }
-        # for _status, _widgets in mgprop_setup.items():
+        # for __status, _widgets in mgprop_setup.items():
         #
         #     self.mmnu_props.add_status(
-        #         _status,
+        #         __status,
         #         replace_default=True,
         #         set_to_current=True
         #     )
@@ -274,17 +253,17 @@ class GSVDashboardEditor(QtWidgets.QWidget):
 
         self.tw1.itemSelectionChanged.connect(self.__tw_selection_changed)
         self.btn_update.clicked.connect(self.__tw_update)
-        self.btn_reset.clicked.connect(self.gsv_props_wgt.reset)
-        self.btn_edit.clicked.connect(self.gsv_props_wgt.set_editable)
-
+        self.btn_reset.clicked.connect(self.gsv_props_wgt.set_unedited)
+        self.btn_edit.clicked.connect(self.gsv_props_wgt.set_edited)
         # GSVPropertiesWidget
         self.gsv_props_wgt.value_changed_sgn.connect(
             self.__gsv_set_value
         )
-        # the QMenuGroup should have already the status built upon the ones
-        # available in GSVPropertiesWidget so it's safe to do this
         self.gsv_props_wgt.status_changed_sgn.connect(
-            self.mmnu_props.set_status_current
+            self.__props_status_changed
+        )
+        self.gsv_props_wgt.unedited_sgn.connect(
+            self.__gsv_remove_edit
         )
 
         return
@@ -292,19 +271,24 @@ class GSVDashboardEditor(QtWidgets.QWidget):
     def __tw_update(self):
         """
         """
-
         parse_mode = "logical_upstream"  # TODO
+        logger.debug(
+            "[{}][__tw_update] Started with mode: <{}>."
+            "".format(self.__class__.__name__, parse_mode)
+        )
 
         # clear teh treewidget before adding new entries
         self.tw1.clear()
 
         st_gsvs = self.__node.get_gsvs(mode=parse_mode)
+        qtwi = None
         for st_gsv in st_gsvs:
             qtwi = TreeWidgetItemGSV(st_gsv=st_gsv, parent=self.tw1)
 
+        # self.tw1.setCurrentItem(qtwi)
         self.__tw_selection_changed()
         logger.debug(
-            "[GSVDashboardEditor][__tw_update] Finished."
+            "[{}][__tw_update] Finished.".format(self.__class__.__name__)
         )
         return
 
@@ -313,56 +297,54 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         When selection change, update the properties displayed.
         """
 
-        gsv_data = self.__tw_selected_get_gsv_data()
+        gsv_data = self.tw1.get_selected_gsv()
         if not gsv_data:
-            # TODO [optional] see what to do
+            # TODO [optional] see what to do, but should "never" happens.
             return
 
         # update the properties
         self.gsv_props_wgt.set_data(gsv_data)
 
         logger.debug(
-            "[GSVDashboardEditor][__lw_selection_changed] Finished."
-            "SuperToolGSV found is <{}>.".format(gsv_data)
+            "[{}][__tw_selection_changed] Finished."
+            "SuperToolGSV found is <{}>."
+            "".format(self.__class__.__name__, gsv_data)
         )
         return
 
-    def __tw_selected_get_gsv_data(self):
+    def __props_status_changed(self, new_status, previous_status):
         """
-        Return the SuperToolGSV instance for the currently selected GSV in
-        the treewidget.
+        Called by signals when status is changed on the GSVPropertiesWidget.
 
-        Returns:
-            SuperToolGSV or None:
+        Args:
+            new_status(str):
+            previous_status(str):
         """
-        selection = self.tw1.selectedItems()  # type: List[TreeWidgetItemGSV]
-        if not selection:
-            logger.debug(
-                "[GSVDashboardEditor][__tw_selected_get_gsv_data] Called but"
-                "self.tw1.selectedItems() return None ?"
-            )
-            return
-
-        # selection in the GUI can only be done on one item anyway
-        selection = selection[0]  # type: TreeWidgetItemGSV
-
-        gsv_data = selection.gsv  # type: SuperToolGSV
-        if not gsv_data:
-            logger.error(
-                "[GSVDashboardEditor][__tw_get_gsv_data] No gsv data found "
-                "for the currently selected tree widget item <{}>. This is"
-                "not supposed to happens ?!"
-                "".format(selection)
-            )
-        return gsv_data
+        # Change the QMenuGroup status based on the GSVPropertiesWidget's one.
+        # (the QMenuGroup should have already the status built upon the ones
+        # available in GSVPropertiesWidget so it's safe to do this)
+        # self.mmnu_props.set_status_current(new_status)
+        logger.debug(
+            "[{}][__props_status_changed] Finished. new_status=<>,"
+            "previous_status=<{}>"
+            "".format(self.__class__.__name__, new_status, previous_status)
+        )
+        return
 
     def __gsv_set_value(self, stgsv, new_value):
         """
+        Called by signals from GSVPropertiesWidget.
+        Asked to the SuperTool node to edit the given GSV.
+
         Args:
             stgsv(SuperToolGSV):
             new_value(str):
         """
         if new_value is None:
+            logger.debug(
+                "[{}][__gsv_set_value] new_value arg passed is None. Returning."
+                "".format(self.__class__.__name__)
+            )
             return
 
         self.__node.edit_gsv(name=stgsv.name, value=new_value)

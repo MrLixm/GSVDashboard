@@ -7,7 +7,8 @@ from contextlib import (
 )
 try:
     from typing import (
-        List
+        List,
+        Optional
     )
 except ImportError:
     pass
@@ -193,12 +194,15 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
 
         with undo_ctx(
                 "Add edit options for GSV <{}> on node <{}>"
-                "".format(name, self.getname())
+                "".format(name, self.getName())
         ):
             if not node:
                 node = NodegraphAPI.CreateNode("VariableSet", self)
 
-            node.getParameter("variableValue").setValue(value)
+            node.getParameter("variableValue").setValue(
+                value,
+                NodegraphAPI.GetCurrentTime()
+            )
             node.setName("VariableSet_{}_{}".format(name, value))
             self.__build_internal_network()
 
@@ -251,7 +255,7 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
 
         with undo_ctx(
                 "Delete edit options for GSV <{}> on node <{}>"
-                "".format(name, self.getname())
+                "".format(name, self.getName())
         ):
             node.delete()
             self.__build_internal_network()
@@ -289,11 +293,12 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
         gsvscene.build()
         # Convert the GSVLocals to SuperToolGSV instances
         for gsvlocal in gsvscene.gsvs:
-            stgsv = SuperToolGSV(data=gsvlocal)
 
+            stgsv = SuperToolGSV(data=gsvlocal)
             # check if the super tool already edit this variable
             if stgsv.name in self.get_edited_gsvs().keys():
-                stgsv.set_edit_node(self)
+                vs_node = self.get_edited_gsvs()[stgsv.name]
+                stgsv.set_edit_node(vs_node)
 
             output.append(stgsv)
             continue
@@ -307,6 +312,7 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
 
 class SuperToolGSVStatus:
 
+    global_set_this = "global set by the supertool"
     global_not_set = "global"
     global_set = "global set locally"
     local_not_set = "local not set"
@@ -335,6 +341,9 @@ class SuperToolGSV(object):
         self.__knode = None  # type: NodegraphAPI.Node
 
         return
+
+    def __repr__(self):
+        return "SuperToolGSV(<{}><{}>)".format(self.name, self.status)
 
     def __str__(self):
         return "SuperToolGSV(<{}><{}>)".format(self.name, self.status)
@@ -366,14 +375,17 @@ class SuperToolGSV(object):
         return self.__data.is_global
 
     @property
-    def is_locked(self):
+    def is_editable(self):
         """
-        Is the gsv set localy in the nodegraph.
+        Is the gsv can be modified.
 
         Returns:
-            bool: True if the GSV can't be modified.
+            bool: True if you can edit this gsv using this SuperTool
         """
-        return True if self.__data.locked else False
+        # already edited by this SuperTool so return true
+        if self.is_edited:
+            return True
+        return False if self.__data.locked else True
 
     @property
     def status(self):
@@ -385,19 +397,23 @@ class SuperToolGSV(object):
             str: current status
         """
 
-        if self.is_global and (self.is_edited or self.is_locked):
+        if self.is_global and not self.is_editable:
             return self.statuses.global_set
+
+        if self.is_global and self.is_edited:
+            return self.statuses.global_set_this
 
         if self.is_global:
             return self.statuses.global_not_set
 
-        if self.is_local and self.is_locked:
-            return self.statuses.local_set
-
+        # must be first as local is locked even if the SuperTool is editing it
         if self.is_local and self.is_edited:
             return self.statuses.local_set_this
 
-        if self.is_local:
+        if self.is_local and not self.is_editable:
+            return self.statuses.local_set
+
+        if self.is_local and self.is_editable:
             return self.statuses.local_not_set
 
         raise RuntimeError(
@@ -419,14 +435,17 @@ class SuperToolGSV(object):
         # if there is an associated variableSet return it's value.
         if self.__knode:
             output = self.__knode.getParameter("variableValue")
+            if not output:
+                logger.error(
+                    "[{}][get_current_value] __knode <{}> doesnt have the"
+                    "paramater <variableValue>."
+                    "".format(self.__class__.__name__, self.__knode)
+                )
             output = output.getValue(NodegraphAPI.GetCurrentTime())
             return str(output)
 
         # this should be the last value set by the top-most GSV setter node.
-        if self.is_locked:
-            return self.__data.locked  # type: str
-
-        return None
+        return self.__data.locked  # type: Optional[str]
 
     def get_all_values(self):
         """
