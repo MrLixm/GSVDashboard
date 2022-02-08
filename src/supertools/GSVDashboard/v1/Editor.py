@@ -25,7 +25,9 @@ from .EditorComponents import (
     QModMenu,
     TreeWidgetItemGSV,
     GSVPropertiesWidget,
-    QTitleBar
+    QTitleBar,
+    ResetButton,
+    EditButton
 )
 # import for type hints only
 try:
@@ -59,7 +61,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.__node.upgrade()
         self.__frozen = True
 
-        self.__uibuild()
+        self.__uicook()
 
         return
 
@@ -168,7 +170,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
     Interactions
     """
 
-    def __uibuild(self):
+    def __uicook(self):
 
         # ==============
         # Create Layouts
@@ -188,9 +190,9 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # self.ttlb_props_hd_reset = QTitleBar()
         # self.ttlb_props_hd_edit = QTitleBar()
         # self.ttlb_props_footer = QTitleBar()
-        # self.btn_reset = QtWidgets.QPushButton()  # TODO
-        # self.btn_edit = QtWidgets.QPushButton()  # TODO
-        self.gsv_props_wgt = GSVPropertiesWidget()  # TODO
+        self.btn_reset = ResetButton()
+        self.btn_edit = EditButton()
+        self.gsv_props_wgt = GSVPropertiesWidget()
 
         # ==============
         # Modify Widgets
@@ -226,8 +228,8 @@ class GSVDashboardEditor(QtWidgets.QWidget):
                 )
             )
         )
-        # self.btn_edit.setText("edit")
-        # self.btn_reset.setText("reset")
+        self.btn_edit.setText("edit")
+        self.btn_reset.setText("reset")
         #
         # QModeMenu
         self.mmnu_props.set_content(self.gsv_props_wgt)
@@ -272,18 +274,18 @@ class GSVDashboardEditor(QtWidgets.QWidget):
 
         self.tw1.itemSelectionChanged.connect(self.__tw_selection_changed)
         self.btn_update.clicked.connect(self.__tw_update)
-        # self.btn_reset.clicked.connect(self.gsv_props_wgt.reset)
-        # self.btn_edit.clicked.connect(self.gsv_props_wgt.reset)
-        #
-        # # GSVPropertiesWidget
-        # self.gsv_props_wgt.value_changed_sgn.connect(
-        #     self.__gsv_set_value
-        # )
-        # # the QMenuGroup should have already the status built upon the ones
-        # # available in GSVPropertiesWidget so it's safe to do this
-        # self.gsv_props_wgt.status_changed_sgn.connect(
-        #     self.mmnu_props.set_status_current
-        # )
+        self.btn_reset.clicked.connect(self.gsv_props_wgt.reset)
+        self.btn_edit.clicked.connect(self.gsv_props_wgt.set_editable)
+
+        # GSVPropertiesWidget
+        self.gsv_props_wgt.value_changed_sgn.connect(
+            self.__gsv_set_value
+        )
+        # the QMenuGroup should have already the status built upon the ones
+        # available in GSVPropertiesWidget so it's safe to do this
+        self.gsv_props_wgt.status_changed_sgn.connect(
+            self.mmnu_props.set_status_current
+        )
 
         return
 
@@ -354,7 +356,22 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             )
         return gsv_data
 
-    def __gsv_set_value(self, gsv_object):
-        pass
+    def __gsv_set_value(self, stgsv, new_value):
+        """
+        Args:
+            stgsv(SuperToolGSV):
+            new_value(str):
+        """
+        if new_value is None:
+            return
 
+        self.__node.edit_gsv(name=stgsv.name, value=new_value)
+        return
 
+    def __gsv_remove_edit(self, stgsv):
+        """
+        Args:
+            stgsv(SuperToolGSV):
+        """
+        self.__node.unedit_gsv(stgsv.name)
+        return

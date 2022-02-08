@@ -22,19 +22,17 @@ from Katana import (
 
 from . import c
 from . import EditorResources as resources
-# import for type hints only
-try:
-    from .Node import SuperToolGSV
-    from .GSV import GSVNode
-except:
-    pass
+from .Node import SuperToolGSV
+from .GSV import GSVNode
 
 
 __all__ = [
     'QModMenu',
     "TreeWidgetItemGSV",
     "GSVPropertiesWidget",
-    "QTitleBar"
+    "QTitleBar",
+    "ResetButton",
+    "EditButton"
 ]
 
 logger = logging.getLogger("{}.EditorComponents".format(c.name))
@@ -519,6 +517,35 @@ class QTitleBar(QtWidgets.QWidget):
         return
 
 
+class ResetButton(QtWidgets.QPushButton):
+
+    color = resources.Colors.reset
+
+    def __init__(self, *args, **kwargs):
+        super(ResetButton, self).__init__(*args, **kwargs)
+
+        style = """
+        QPushButton {{
+            border-radius: 5px;
+            border: 1px solid rgb({0})
+            background-color: rgba({0}, 0.5)
+        }}
+        """.format(str(self.color)[1:][:-1])
+        self.setStyleSheet(style)
+
+        return
+
+
+class EditButton(ResetButton):
+
+    color = resources.Colors.edit
+
+
+"""
+Higher-level widget
+"""
+
+
 class LabeledWidget(QtWidgets.QWidget):
     """
     Wrap an existing widget with a bottom info line composed of an optional
@@ -568,7 +595,7 @@ class LabeledWidget(QtWidgets.QWidget):
             background-color: transparent;
             border: unset;
         }}
-        
+
         QToolTip {{
             background-color: rgb{0};
             border: 1px solid rgba({1}, 0.5);
@@ -688,40 +715,14 @@ class LabeledWidget(QtWidgets.QWidget):
         return
 
 
-class ComboBoxGSVValue(QtWidgets.QComboBox):
-
-    def __init__(self, parent=None):
-        super(ComboBoxGSVValue, self).__init__(parent)
-        self.locked = False
-        self.currentIndexChanged.connect(self.setCurrentIndex)
-        self.currentTextChanged.connect(self.setCurrentText)
-        return
-
-    def changeEvent(self, e):
-        print("changeEvent")
-        super(ComboBoxGSVValue, self).changeEvent(e)
-
-    def focusOutEvent(self, e):
-        print("focusOutEvent")
-        super(ComboBoxGSVValue, self).focusOutEvent(e)
-
-    def focusInEvent(self, e):
-        print("focusInEvent")
-        super(ComboBoxGSVValue, self).focusInEvent(e)
-
-
-"""
-Higher-level widget
-"""
-
-
 # noinspection PyArgumentList
 class QModMenu(QtWidgets.QWidget):
     """
     Container widget with a header and a footer widget. In between you have a
     content widget.
-    The widget can have multiple status that can be added on the fly.
+    The QModMenu can have multiple status that can be added on the fly.
     Each status store a different widget setup for header/footer.
+
     ::
 
         --[header widget]-------------------------------
@@ -1007,6 +1008,8 @@ class QModMenu(QtWidgets.QWidget):
 
 class GSVPropertiesWidget(QtWidgets.QWidget):
     """
+    Widget used to display the properties of a single GSV.
+    It's name, the value sit can take, and it's associated Nodes.
 
     ::
 
@@ -1017,9 +1020,20 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         [ node3                 ]
 
 
+    Attributes:
+        value_changed_sgn:
+            qt signal emitted when the USER change the value of the ComboBox
+        status_changed_sgn:
+            qt signal emitted when the widget change status, value emitted is
+            one of the 3 <status_XXX> attributes
+
+    Notes:
+        widget being instance of LabeledWidget need to be accessed through
+        LabeledWidget().content.setStyleSheet(...)
+
     """
 
-    value_changed_sgn = QtCore.pyqtSignal(str)
+    value_changed_sgn = QtCore.pyqtSignal(SuperToolGSV, str)
     status_changed_sgn = QtCore.pyqtSignal(str)
 
     status_editable = "editable"
@@ -1030,7 +1044,7 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
 
         super(GSVPropertiesWidget, self).__init__()
 
-        self.__status = self.status_locked  # default status is read only
+        self._status = self.status_locked  # default status is read only
         self.__data = None  # type: SuperToolGSV
         self.__edited = False
 
@@ -1041,6 +1055,57 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         self.tw_nodes = None
 
         self.__ui_cook()
+
+        return
+
+    @property
+    def status(self):
+        return self._status
+
+    @status.setter
+    def status(self, status_value):
+        """
+        Change the current Status of the widget
+
+        Args:
+            status_value(str):
+
+        """
+        if status_value not in [
+            self.status_edited,
+            self.status_locked,
+            self.status_editable
+        ]:
+            raise ValueError(
+                "Value <{}> passed is not supported.".format(status_value)
+            )
+        self._status = status_value
+
+    @property
+    def edited(self):
+        return self.__edited
+
+    @edited.setter
+    def edited(self, edited_value):
+        self.__edited = edited_value
+        self.__update_status()
+        return
+
+    def set_editable(self):
+        """
+        Set the status to <editable> if the previous status was <locked>
+        """
+        if self.status == self.status_locked:
+            self.status = self.status_editable
+        return
+
+    def reset(self):
+        """
+        Reset the interface as it was never modified by the user.
+        """
+        # order is important
+        self.edited = False
+        self.__ui_bake()
 
         return
 
@@ -1076,7 +1141,7 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         # Create Widgets
         # ==============
         self.lbl_name = LabeledWidget(QtWidgets.QLabel())
-        self.cbb_value = LabeledWidget(ComboBoxGSVValue())
+        self.cbb_value = LabeledWidget(QtWidgets.QComboBox())
         self.tw_nodes = LabeledWidget(QtWidgets.QTreeWidget())
 
         # ==============
@@ -1091,7 +1156,9 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         self.cbb_value.content.setEditable(False)
         self.cbb_value.set_text("Values")
         self.cbb_value.set_info(
-            "Values the GSV can take based on what nodes are using."
+            "Values the GSV can take based on what values nodes are using.\n"
+            "The currently active value might not correspond to the currently"
+            "set value."
         )
         # treewidget
         self.tw_nodes.set_text("Linked Nodes")
@@ -1134,7 +1201,8 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         # Setup Connections
         # =================
 
-        self.cbb_value.content.currentIndexChanged.connect(self.__value_changed)
+        # onloy emit on user interaction
+        self.cbb_value.content.activated.connect(self.__value_changed)
 
         return
 
@@ -1157,11 +1225,10 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         self.cbb_value.content.clear()
         self.cbb_value.content.addItems(self.__data.get_all_values())
         self.cbb_value.content.setCurrentText(self.__data.get_current_value())
-        print("[GSVPropertiesWidget][__ui_bake] status={}".format(self.__status))
-        if self.__status == self.status_locked:
-            self.cbb_value.content.locked = True
+        if self.status == self.status_locked:
+            self.cbb_value.content.setEnabled(False)
         else:
-            self.cbb_value.content.locked = False
+            self.cbb_value.content.setEnabled(True)
         # treewidget
         self.__tw_update()
 
@@ -1169,9 +1236,10 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
 
     def __tw_update(self):
         """
+        Populate the node tree widget with GSVNode fron the current GSV.
         """
 
-        # clear teh treewidget before adding new entries
+        # clear the treewidget before adding new entries
         self.tw_nodes.content.clear()
 
         for gsvnode in self.__data.get_nodes():
@@ -1187,7 +1255,7 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
 
     def __update_status(self):
         """
-        Update ``__status`` attribute according to instance attributes.
+        Update ``status`` attribute according to instance attributes.
         Status depends of :
 
         * ``__data`` : if locked
@@ -1200,20 +1268,20 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
                 "[GSVPropertiesWidget][update_status] Called but "
                 "self.__data is None."
             )
-            self.__status = self.status_locked
+            self.status = self.status_locked
             # return without emitting signal
             return
 
         if self.__data.is_locked:
-            self.__status = self.status_locked
+            self.status = self.status_locked
 
         # The SuperTool already have a node that edit this GSV or this widget
         # is marked as edited :
         elif self.__data.is_edited or self.__edited:
-            self.__status = self.status_edited
+            self.status = self.status_edited
 
-        elif not self.__edited:
-            self.__status = self.status_editable
+        elif not self.edited:
+            self.status = self.status_editable
 
         else:
             # This should never happens
@@ -1223,28 +1291,22 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
             )
 
         # emit the new status (can be the same as previous one emitted)
-        self.status_changed_sgn.emit(self.__status)
+        self.status_changed_sgn.emit(self.status)
 
         return
 
     def __value_changed(self):
         """
-        To call when the user or the script edit the ``value combobox``.
+        To call when the user edit the ``value combobox``.
+
+        Emits:
+            (tuple(SuperToolGSV, str or None)): current GSV data + new value set.
+
         """
-        self.__edited = True
-        value = self.cbb_value.content.currentText()
-        self.value_changed_sgn.emit(value)
-
-        return
-
-    def reset(self):
-        """
-        Reset the interface as it was never modified by the user.
-        """
-
-        self.__edited = False  # order is important
-        self.__ui_bake()
-
+        value = self.cbb_value.content.currentText()  # type: str
+        # value was originaly from a SuperToolGSV instance, safe to do this :
+        self.edited = True
+        self.value_changed_sgn.emit(self.__data, value)
         return
 
     def set_data(self, gsv_data):
