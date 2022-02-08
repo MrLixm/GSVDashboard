@@ -277,6 +277,14 @@ class GSVNode(object):
 
         return output
 
+    def select_edit(self):
+        """
+        Select and set the katana node to edited in the UI.
+        """
+        NodegraphAPI.SetAllSelectedNodes([self.node])
+        NodegraphAPI.SetNodeEdited(self.node, True, exclusive=True)
+        return
+
 
 class GSVObject(object):
     """
