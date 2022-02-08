@@ -157,43 +157,115 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
     Actual API
     """
 
+    def __build_internal_network(self):
+        """
+        Using the WireInlineNodes, connect all the nodes insides to themself
+        and to the SuperTool Return/Sender ports.
+        """
+        try:
+            PackageSuperToolAPI.NodeUtils.WireInlineNodes(
+                self,
+                self.getChildren(),
+                0,
+                50
+            )
+        except Exception as excp:
+            # TODO see if it's safe to raise an error
+            raise RuntimeError(
+                "[{}][__build_internal_network] WireInlineNodes exceptions:\n"
+                "{}".format(self.__class__.__name__, excp)
+            )
+        return
+
     def edit_gsv(self, name, value):
+        """
+        Args:
+            name(str): Name of the GSV to edit
+            value(str): Value to give to the GSV
+        """
+
+        # check if we are not already editing the variable inside
+        node = None
+        for gsvname, edited_node in self.get_edited_gsvs().items():
+            if name == gsvname:
+                node = edited_node
+                break
+
         with undo_ctx(
                 "Add edit options for GSV <{}> on node <{}>"
                 "".format(name, self.getname())
         ):
-            pass
+            if not node:
+                node = NodegraphAPI.CreateNode("VariableSet", self)
 
-        logger.info(
+            node.getParameter("variableValue").setValue(value)
+            node.setName("VariableSet_{}_{}".format(name, value))
+            self.__build_internal_network()
+
+        logger.debug(
             "[GSVDashboardNode][edit_gsv] Finished with name<{}>, value<{}>"
             "".format(name, value)
         )
-        # TODO
         return
 
     def get_edited_gsvs(self):
         """
-        TODO
+        Return a dict of {GSV Name : Katana node} where the node is the
+        VariableSet node used inside teh SuperTool to edit the GSV of the
+        corresponding name.
+        Can return an empty dict.
+
+        Returns:
+            dict of str|NodegraphAPI.Node:
         """
-        return {
-            "gsvName": NodegraphAPI.Node
-        }
+        out = {}
+        for child in self.getChildren():
+            gsv_name = child.getParameter("variableName")
+            gsv_name = gsv_name.getValue(NodegraphAPI.GetCurrentTime())
+            out[gsv_name] = child
+
+        return out
 
     def unedit_gsv(self, name):
+        """
+        Remove the VariableSet the SuperTool is using to edit the given GSV.
+        Passing a GSV that is not edited yet will just return and log an error.
+
+        Args:
+            name(str): name of the GSV to stop editing.
+        """
+
+        # check if we are editing the GSV with the given name inside
+        node = None
+        for gsvname, edited_node in self.get_edited_gsvs().items():
+            if name == gsvname:
+                node = edited_node
+                break
+        # if not found exit and log error (this shouldn't have been called)
+        if not node:
+            logger.error(
+                "[{}][unedit_gsv] No current node is editing the GSV <{}>."
+                "".format(self.__class__.__name__, name)
+            )
+            return
+
         with undo_ctx(
                 "Delete edit options for GSV <{}> on node <{}>"
                 "".format(name, self.getname())
         ):
-            pass
-        logger.info(
+            node.delete()
+            self.__build_internal_network()
+
+        logger.debug(
             "[GSVDashboardNode][unedit_gsv] Finished with name<{}>."
             "".format(name)
         )
-        # TODO
         return
 
     def get_gsvs(self, mode="logical_upstream"):
         """
+        Parse the scene to find all the GSV used.
+
         Args:
             mode(str): See GSV.GSVSettings for supported modes.
 
@@ -226,7 +298,7 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
             output.append(stgsv)
             continue
 
-        logger.info(
+        logger.debug(
             "[GSVDashboardNode][get_gsvs] Finished with mode<{}>."
             "".format(mode)
         )
@@ -351,7 +423,7 @@ class SuperToolGSV(object):
             return str(output)
 
         # this should be the last value set by the top-most GSV setter node.
-        if self.__data.locked:
+        if self.is_locked:
             return self.__data.locked  # type: str
 
         return None
@@ -359,7 +431,8 @@ class SuperToolGSV(object):
     def get_all_values(self):
         """
         Returns:
-            list of str: List of values the GSV can take
+            list of str:
+                List of values the GSV can take.
         """
         return self.__data.values
 
