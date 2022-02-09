@@ -29,7 +29,8 @@ from .EditorComponents import (
     QTitleBar,
     ResetButton,
     EditButton,
-    GSVTreeWidget
+    GSVTreeWidget,
+    UpdateButton
 )
 # import for type hints only
 try:
@@ -182,8 +183,8 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # ==============
         # Create Widgets
         # ==============
-        self.ttlb_header = QTitleBar()
-        self.btn_update = QtWidgets.QPushButton()
+        self.ttlb_header = QTitleBar(title="GSVs")
+        self.btn_update = UpdateButton()
         self.cbb_source = QtWidgets.QComboBox()
         self.tw1 = GSVTreeWidget()
         self.mmnu_props = QModMenu()
@@ -201,17 +202,19 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # ==============
 
         # # QPushButton
-        self.btn_update.setIcon(
-            QtGui.QIcon(
-                UI4.Util.IconManager.GetPixmap(
-                    r"Icons\update_active20_hilite.png"
-                )
-            )
-        )
+        self.btn_update.setToolTip("Manually update the GSV list.")
         self.btn_edit.setText("edit")
+        self.btn_edit.setToolTip(
+            "Create a VariableSet to edit the selected GSV."
+        )
         self.btn_reset.setText("reset")
-
+        self.btn_reset.setToolTip(
+            "Delete the modified value for the selected GSV. "
+            "This GSV is no more "
+            "edited by this super tool."
+        )
         # QToolBars
+        self.ttlb_header.add_widget(self.btn_update)
         self.ttlb_props_hd_locked.set_icon(resources.Icons.status_l_locked)
         self.ttlb_props_hd_reset.set_icon(resources.Icons.status_l_edited)
         self.ttlb_props_hd_reset.add_widget(self.btn_reset)
@@ -249,7 +252,8 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # Add to Layouts
         # ==============
         self.setLayout(self.lyt_m)
-        self.lyt_m.addWidget(self.btn_update)
+        self.lyt_m.setSpacing(8)
+        self.lyt_m.addWidget(self.ttlb_header)
         # self.lyt_m.addWidget(self.ttlb_header)
         self.lyt_m.addWidget(self.tw1)
         self.lyt_m.addWidget(self.mmnu_props)
@@ -284,7 +288,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             "".format(self.__class__.__name__, parse_mode)
         )
 
-        # clear teh treewidget before adding new entries
+        # clear the treewidget before adding new entries
         self.tw1.clear()
 
         st_gsvs = self.__node.get_gsvs(mode=parse_mode)
@@ -292,11 +296,30 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         for st_gsv in st_gsvs:
             qtwi = TreeWidgetItemGSV(st_gsv=st_gsv, parent=self.tw1)
 
-        # self.tw1.setCurrentItem(qtwi)
+        self.__tw_select_last_selected()
         self.__tw_selection_changed()
         logger.debug(
             "[{}][__tw_update] Finished.".format(self.__class__.__name__)
         )
+        return
+
+    def __tw_select_last_selected(self):
+        """
+        When updating the tw we loose the selection, select back the last
+        item that was selected if possible.
+        """
+        gsv_name = self.tw1.last_selected
+        if not gsv_name:
+            return
+
+        to_select = None
+        for twitem in self.tw1.get_all_items():
+            if twitem.gsv.name == gsv_name:
+                to_select = twitem
+
+        if to_select:
+            self.tw1.setCurrentItem(to_select)
+
         return
 
     def __tw_selection_changed(self):
@@ -304,10 +327,12 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         When selection change, update the properties displayed.
         """
 
-        gsv_data = self.tw1.get_selected_gsv()
+        gsv_data = self.tw1.get_selected_gsv_data()
         if not gsv_data:
             # TODO [optional] see what to do, but should "never" happens.
             return
+
+        # self.tw1.last_selected = gsv_data.name
 
         # update the properties
         self.gsv_props_wgt.set_data(gsv_data)
@@ -355,6 +380,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             return
 
         self.__node.edit_gsv(name=stgsv.name, value=new_value)
+        self.__tw_update()
         return
 
     def __gsv_remove_edit(self, stgsv):
@@ -363,4 +389,5 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             stgsv(SuperToolGSV):
         """
         self.__node.unedit_gsv(stgsv.name)
+        self.__tw_update()
         return

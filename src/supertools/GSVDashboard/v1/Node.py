@@ -163,6 +163,11 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
         Using the WireInlineNodes, connect all the nodes insides to themself
         and to the SuperTool Return/Sender ports.
         """
+        # check if all nodes were deleted
+        if not self.getChildren():
+            self.__build_default_network()
+            return
+
         try:
             PackageSuperToolAPI.NodeUtils.WireInlineNodes(
                 self,
@@ -199,6 +204,10 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
             if not node:
                 node = NodegraphAPI.CreateNode("VariableSet", self)
 
+            node.getParameter("variableName").setValue(
+                name,
+                NodegraphAPI.GetCurrentTime()
+            )
             node.getParameter("variableValue").setValue(
                 value,
                 NodegraphAPI.GetCurrentTime()

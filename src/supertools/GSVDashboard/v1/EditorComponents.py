@@ -34,7 +34,8 @@ __all__ = [
     "QTitleBar",
     "ResetButton",
     "EditButton",
-    "GSVTreeWidget"
+    "GSVTreeWidget",
+    "UpdateButton"
 ]
 
 logger = logging.getLogger("{}.EditorComponents".format(c.name))
@@ -479,8 +480,9 @@ class NodeTreeWidget(QtWidgets.QTreeWidget):
 
         style = """
         QTreeWidget {
-            border: none;
             border-radius: 3px;
+            border: 0;
+            padding: 3px;
         }    
         """
 
@@ -488,7 +490,7 @@ class NodeTreeWidget(QtWidgets.QTreeWidget):
         self.setStyleSheet(style)
         self.setHeaderHidden(True)
         self.setColumnCount(TreeWidgetItemGSVNode.column_number())
-        self.setMinimumHeight(60)
+        self.setMinimumHeight(100)
         self.setAlternatingRowColors(False)
         self.setSortingEnabled(True)
         self.setUniformRowHeights(True)
@@ -545,12 +547,33 @@ class NodeTreeWidget(QtWidgets.QTreeWidget):
 
 
 class GSVTreeWidget(QtWidgets.QTreeWidget):
+    """
+    TreeWidget used to display GSV in Scene.
+    Store TreeWidgetItemGSV that themself store SuperToolGSV.
+
+    Attributes:
+        last_selected(str or None): name of the last selected GSV
+    """
+
     def __init__(self):
         super(GSVTreeWidget, self).__init__()
         self.__cook()
+        self.last_selected = None
 
     def __cook(self):
 
+        style = """
+        QTreeView {
+            border-radius: 3px;
+            border: 0;
+            padding: 3px;
+        }   
+        QHeaderView::section {
+            border: 0;
+        }
+        """
+
+        self.setStyleSheet(style)
         self.setColumnCount(TreeWidgetItemGSV.column_number())
         self.setMinimumHeight(150)
         self.setAlternatingRowColors(True)
@@ -571,9 +594,20 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
         # The user can resize the section
         header.setSectionResizeMode(header.Interactive)
 
+        self.itemSelectionChanged.connect(self.__on_selection_changed)
+
         return
 
-    def get_selected_gsv(self):
+    def __on_selection_changed(self):
+
+        gsv = self.get_selected_gsv_data()
+        if not gsv:
+            return
+        self.last_selected = gsv.name
+
+        return
+
+    def get_selected_gsv_data(self):
         """
         Return the SuperToolGSV instance for the currently selected GSV in
         the treewidget.
@@ -602,6 +636,26 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
                 "".format(self.__class__.__name__, selection)
             )
         return gsv_data
+
+    def get_all_items(self):
+        """
+        source:
+            https://stackoverflow.com/questions/8961449/pyqt-qtreewidget-iterating
+
+        Returns:
+            list of TreeWidgetItemGSV:
+                list of TreeWidgetItemGSV
+        """
+
+        out = list()
+        root = self.invisibleRootItem()
+        child_count = root.childCount()
+        # iterate through the direct child of the invisible_root_item
+        for index in range(child_count):
+            qitem_root = root.child(index)  # type: TreeWidgetItemGSV
+            out.append(qitem_root)
+
+        return out
 
 
 """ ---------------------------------------------------------------------------
@@ -700,6 +754,7 @@ class QTitleBar(QtWidgets.QWidget):
         # Modify Widgets
         # ==============
         self.lbl.setHidden(True)
+        self.lbl.setMinimumHeight(30)
         # Icon
         #   reset stylesheet, we only need the icon
         self.icon.setStyleSheet(style_icon)
@@ -710,7 +765,13 @@ class QTitleBar(QtWidgets.QWidget):
         self.bar.setStyleSheet(style_bar)
         # Self
         self.bar.setMinimumHeight(5)
-        self.setMaximumHeight(35)
+        self.setMaximumHeight(50)  # random limit
+        self.bar.setSizePolicy(
+            QtWidgets.QSizePolicy(
+                QtWidgets.QSizePolicy.MinimumExpanding,
+                QtWidgets.QSizePolicy.MinimumExpanding
+            )
+        )
         self.setSizePolicy(
             QtWidgets.QSizePolicy(
                 QtWidgets.QSizePolicy.MinimumExpanding,
@@ -725,6 +786,7 @@ class QTitleBar(QtWidgets.QWidget):
         self.bar.setLayout(self.lytbar)
         self.lytbar.addWidget(self.icon)
         self.lytbar.addWidget(self.lbl)
+        self.lyt.setContentsMargins(0, 0, 5, 0)
         self.lyt.addWidget(self.bar)
         self.lyt.setSpacing(10)
         self.setLayout(self.lyt)
@@ -847,6 +909,35 @@ class EditButton(ResetButton):
     bgcolor = resources.Colors.edit
 
 
+class UpdateButton(QtWidgets.QPushButton):
+
+    def __init__(self, *args, **kwargs):
+        super(UpdateButton, self).__init__(*args, **kwargs)
+
+        style = """
+            QPushButton {
+            border: unset;
+            background-color: transparent;
+            padding: 2px;
+        }
+        """
+        self.setStyleSheet(style)
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy(
+                QtWidgets.QSizePolicy.Maximum,
+                QtWidgets.QSizePolicy.Maximum
+            )
+        )
+        self.setIcon(
+            QtGui.QIcon(
+                UI4.Util.IconManager.GetPixmap(
+                    r"Icons\update_active20_hilite.png"
+                )
+            )
+        )
+        return
+
+
 """
 Higher-level widget
 """
@@ -872,7 +963,6 @@ class LabeledWidget(QtWidgets.QWidget):
 
     info_icon_size = 10
     txt_font_size = 10
-    min_height = 16
 
     def __init__(self, content=None, text=None, info_text=None):
         super(LabeledWidget, self).__init__()
@@ -900,7 +990,7 @@ class LabeledWidget(QtWidgets.QWidget):
         style_info = """
         QPushButton {{
             background-color: transparent;
-            margin: 2px;
+            margin: 0;
             border: 0;
         }}
 
@@ -915,6 +1005,13 @@ class LabeledWidget(QtWidgets.QWidget):
             bgcolor.getRgb()[:-1],
             str(color_disabled.getRgb()[:-1])[1:][:-1]
         )
+
+        style_lbl = """
+        QLabel{{
+            font-size: {}px;
+            margin-top: 2px;
+        }}
+        """.format(self.txt_font_size)
 
         # ==============
         # Create Layouts
@@ -931,12 +1028,9 @@ class LabeledWidget(QtWidgets.QWidget):
         # ==============
         # Modify Widgets
         # ==============
-        self.setMinimumHeight(self.min_height)
         self.lbl.setEnabled(False)
         # small text for label
-        self.lbl.setStyleSheet(
-            "QLabel{{font-size: {}px;}}".format(self.txt_font_size)
-        )
+        self.lbl.setStyleSheet(style_lbl)
 
         qpixmap = QtGui.QPixmap(resources.Icons.info)
         qpixmap = qpixmap.scaled(
@@ -1619,7 +1713,10 @@ class GSVPropertiesWidget(QtWidgets.QFrame):
 
         style = """
         QFrame#{} {{
-            border-left: 2px solid rgba{};
+            border: 2px solid rgba{};
+            border-top-width: 0;
+            border-bottom-width: 0;
+            border-right-width: 0;
         }}
         """.format(self.__class__.__name__, darkbgcolor.getRgb())
 
@@ -1644,7 +1741,7 @@ class GSVPropertiesWidget(QtWidgets.QFrame):
         # ==============
 
         self.setObjectName(str(self.__class__.__name__))
-        self.setContentsMargins(5, 10, 5, 10)
+        self.setContentsMargins(10, 20, 10, 20)
         self.setStyleSheet(style)
 
         self.lbl_name.setEnabled(False)
@@ -1654,8 +1751,8 @@ class GSVPropertiesWidget(QtWidgets.QFrame):
         self.cbb_value.set_text("Values")
         self.cbb_value.set_info(
             "Values the GSV can take based on what values nodes are using.\n"
-            "The currently active value might not correspond to the currently"
-            "set value."
+            "The currently active value should correspond to last value set "
+            "for the gsv (if the GSV is set), but this might not be accurate."
         )
         # treewidget
         self.tw_nodes.set_text("Linked Nodes")

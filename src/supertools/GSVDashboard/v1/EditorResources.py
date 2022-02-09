@@ -3,6 +3,11 @@
 """
 import os.path
 
+__all__ = [
+    "Colors",
+    "Icons"
+]
+
 
 class Colors:
     """
