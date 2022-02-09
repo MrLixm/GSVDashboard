@@ -2,6 +2,7 @@
 
 """
 import logging
+import pprint
 
 try:
     from typing import List, Optional, Tuple, Union
@@ -187,10 +188,10 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.tw1 = GSVTreeWidget()
         self.mmnu_props = QModMenu()
 
-        # self.ttlb_props_hd_locked = QTitleBar()
-        # self.ttlb_props_hd_reset = QTitleBar()
-        # self.ttlb_props_hd_edit = QTitleBar()
-        # self.ttlb_props_footer = QTitleBar()
+        self.ttlb_props_hd_locked = QTitleBar(title="Properties")
+        self.ttlb_props_hd_reset = QTitleBar(title="Properties")
+        self.ttlb_props_hd_edit = QTitleBar(title="Properties")
+        self.ttlb_props_footer = QTitleBar()
         self.btn_reset = ResetButton()
         self.btn_edit = EditButton()
         self.gsv_props_wgt = GSVPropertiesWidget()
@@ -209,34 +210,40 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         )
         self.btn_edit.setText("edit")
         self.btn_reset.setText("reset")
-        #
+
+        # QToolBars
+        self.ttlb_props_hd_locked.set_icon(resources.Icons.status_l_locked)
+        self.ttlb_props_hd_reset.set_icon(resources.Icons.status_l_edited)
+        self.ttlb_props_hd_reset.add_widget(self.btn_reset)
+        self.ttlb_props_hd_edit.set_icon(resources.Icons.status_l_viewed)
+        self.ttlb_props_hd_edit.add_widget(self.btn_edit)
+
         # QModeMenu
+        mgprop_setup = {
+            GSVPropertiesWidget.status_editable: [
+                self.ttlb_props_hd_edit,
+                self.ttlb_props_footer
+            ],
+            GSVPropertiesWidget.status_locked: [
+                self.ttlb_props_hd_locked,
+                self.ttlb_props_footer
+            ],
+            GSVPropertiesWidget.status_edited: [
+                self.ttlb_props_hd_reset,
+                self.ttlb_props_footer
+            ],
+        }
+        for __status, _widgets in mgprop_setup.items():
+            self.mmnu_props.add_status(
+                __status,
+                replace_default=True,
+                set_to_current=True
+            )
+            self.mmnu_props.set_header_widget(_widgets[0])
+            self.mmnu_props.set_footer_widget(_widgets[1])
+            continue
         self.mmnu_props.set_content(self.gsv_props_wgt)
-        self.mmnu_props.build()
-        # mgprop_setup = {
-        #     GSVPropertiesWidget.status_editable: [
-        #         self.ttlb_props_hd_edit,
-        #         self.ttlb_props_footer
-        #     ],
-        #     GSVPropertiesWidget.status_locked: [
-        #         self.ttlb_props_hd_locked,
-        #         self.ttlb_props_footer
-        #     ],
-        #     GSVPropertiesWidget.status_edited: [
-        #         self.ttlb_props_hd_reset,
-        #         self.ttlb_props_footer
-        #     ],
-        # }
-        # for __status, _widgets in mgprop_setup.items():
-        #
-        #     self.mmnu_props.add_status(
-        #         __status,
-        #         replace_default=True,
-        #         set_to_current=True
-        #     )
-        #     self.mmnu_props.set_header_widget(_widgets[0])
-        #     self.mmnu_props.set_footer_widget(_widgets[1])
-        #     continue
+        self.mmnu_props.update()
 
         # ==============
         # Add to Layouts
@@ -323,7 +330,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # Change the QMenuGroup status based on the GSVPropertiesWidget's one.
         # (the QMenuGroup should have already the status built upon the ones
         # available in GSVPropertiesWidget so it's safe to do this)
-        # self.mmnu_props.set_status_current(new_status)
+        self.mmnu_props.set_status_current(new_status)
         logger.debug(
             "[{}][__props_status_changed] Finished. new_status=<>,"
             "previous_status=<{}>"

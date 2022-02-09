@@ -24,6 +24,7 @@ class Colors:
     """rgb(114, 114, 114)"""
     reset = (114, 114, 114)  # used by reset button
 
+
 class Icons:
     """
 
@@ -33,6 +34,7 @@ class Icons:
 
     status_g_locked = os.path.join(__root, "status_g_locked.svg")
     status_g_viewed = os.path.join(__root, "status_g_viewed.svg")
+    status_g_edited = os.path.join(__root, "status_g_edited.svg")
     status_l_edited = os.path.join(__root, "status_l_edited.svg")
     status_l_locked = os.path.join(__root, "status_l_locked.svg")
     status_l_viewed = os.path.join(__root, "status_l_viewed.svg")

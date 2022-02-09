@@ -1,6 +1,7 @@
 """
 
 """
+import inspect
 import logging
 from abc import abstractmethod
 
@@ -271,7 +272,8 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
             SuperToolGSV.statuses.global_not_set: resources.Colors.yellow_global,
             SuperToolGSV.statuses.global_set: resources.Colors.yellow_global_disabled,
             SuperToolGSV.statuses.local_set_this: resources.Colors.edited,
-            SuperToolGSV.statuses.local_set: resources.Colors.text_disabled
+            SuperToolGSV.statuses.local_set: resources.Colors.text_disabled,
+            SuperToolGSV.statuses.global_set_this: resources.Colors.yellow_global
         },
         "icons": {
             SuperToolGSV.statuses.global_not_set: resources.Icons.status_g_viewed,
@@ -279,13 +281,15 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
             SuperToolGSV.statuses.local_set_this: resources.Icons.status_l_edited,
             SuperToolGSV.statuses.local_not_set: resources.Icons.status_l_viewed,
             SuperToolGSV.statuses.local_set: resources.Icons.status_l_locked,
+            SuperToolGSV.statuses.global_set_this: resources.Icons.status_g_edited,
         },
         "sorting": {
             SuperToolGSV.statuses.global_set: 0,
             SuperToolGSV.statuses.local_set: 1,
             SuperToolGSV.statuses.local_set_this: 2,
-            SuperToolGSV.statuses.local_not_set: 3,
-            SuperToolGSV.statuses.global_not_set: 4,
+            SuperToolGSV.statuses.global_set_this: 3,
+            SuperToolGSV.statuses.local_not_set: 4,
+            SuperToolGSV.statuses.global_not_set: 5,
         }
     }
 
@@ -498,9 +502,9 @@ class NodeTreeWidget(QtWidgets.QTreeWidget):
         self.setFocusPolicy(QtCore.Qt.NoFocus)
         self.setColumnWidth(0, TreeWidgetItemGSVNode.column_size(0)[0])
         self.setHeaderLabels(TreeWidgetItemGSVNode.column_labels())
-
         header = self.header()  # type: QtWidgets.QHeaderView
         header.setSectionResizeMode(header.ResizeToContents)
+        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.customContextMenuRequested[QtCore.QPoint].connect(
             self.__contextmenu
         )
@@ -521,6 +525,9 @@ class NodeTreeWidget(QtWidgets.QTreeWidget):
         # Infos about the node selected.
         index = self.indexAt(point)
         if not index.isValid():
+            logger.debug(
+                "[NodeTreeWidget][__contextmenu] index not valid, returning."
+            )
             return False
 
         selected_item = self.selectedItems()[0]  # type: TreeWidgetItemGSVNode
@@ -530,7 +537,7 @@ class NodeTreeWidget(QtWidgets.QTreeWidget):
 
         act_select = QtWidgets.QAction("Select and Edit the Node")
         act_select.triggered.connect(selected_item.gsv_node.select_edit)
-        self.addAction(act_select)
+        menu.addAction(act_select)
 
         menu.exec_(QtGui.QCursor.pos())
 
@@ -608,78 +615,236 @@ Low-level widget
 
 
 class QTitleBar(QtWidgets.QWidget):
+    """
+    Horizontal widget with a title and left icon (both optionals).
+    You can append a bunch of widgets at it's end.
+    ::
 
-    border_radius = 4
+        -[icon]--Title------------------- {widgets}
+
+    """
+
+    border_radius = 5
+    icon_size = 16
 
     def __init__(self, parent=None, title=None):
 
         super(QTitleBar, self).__init__(parent)
         self.__title = title
+        self.__icon = None
+        self.__widgets = list()
+        self.__uicook()
+        return
+
+    def __uicook(self):
+
+        # =============
+        # Create Styles
+        # =============
 
         # must be in the instance else the mainWindow is not created yet
-        self.mainwindow = UI4.App.MainWindow.GetMainWindow()
-        self.palette = self.mainwindow.palette()
+        mainwindow = UI4.App.MainWindow.GetMainWindow()
+        qpalette = mainwindow.palette()
+
+        bgcolor = qpalette.color(qpalette.Background)
+        color_disabled = qpalette.color(
+            qpalette.Disabled,
+            qpalette.Text
+        )
+        darkbgcolor = qpalette.color(
+            qpalette.Normal,
+            qpalette.Shadow
+        )
+
+        style_bar = """
+        .QWidget {{
+            background-color: rgba{};
+            border-radius: {}px;
+        }}
+        """.format(darkbgcolor.getRgb(), self.border_radius)
+
+        style_icon = """
+        QPushButton {{
+            background-color: transparent;
+            border: 0;
+        }}
+
+        QToolTip {{
+            background-color: rgb{0};
+            border: 1px solid rgba({1}, 0.5);
+            border-radius: 3px;
+            color: rgb({1});
+            padding: 4px;
+        }}
+        """.format(
+            bgcolor.getRgb()[:-1],
+            str(color_disabled.getRgb()[:-1])[1:][:-1]
+        )
+
+        # ==============
+        # Create Layouts
+        # ==============
+
+        self.lyt = QtWidgets.QHBoxLayout()
+        self.lytbar = QtWidgets.QHBoxLayout()
+
+        # ==============
+        # Create Widgets
+        # ==============
+
+        self.bar = QtWidgets.QWidget()
+        self.icon = QtWidgets.QPushButton()
+        self.lbl = QtWidgets.QLabel()
+
+        # ==============
+        # Modify Widgets
+        # ==============
+        self.lbl.setHidden(True)
+        # Icon
+        #   reset stylesheet, we only need the icon
+        self.icon.setStyleSheet(style_icon)
+        self.icon.setMaximumSize(self.icon_size, self.icon_size)
+        self.icon.setHidden(True)
+        # Bar
+        # self.bar.setAttribute(QtCore.Qt.WA_StyledBackground, True)
+        self.bar.setStyleSheet(style_bar)
+        # Self
+        self.bar.setMinimumHeight(5)
+        self.setMaximumHeight(35)
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy(
+                QtWidgets.QSizePolicy.MinimumExpanding,
+                QtWidgets.QSizePolicy.MinimumExpanding
+            )
+        )
+
+        # ==============
+        # Modifiy Layouts
+        # ==============
+        self.lytbar.setContentsMargins(5, 0, 0, 0)
+        self.bar.setLayout(self.lytbar)
+        self.lytbar.addWidget(self.icon)
+        self.lytbar.addWidget(self.lbl)
+        self.lyt.addWidget(self.bar)
+        self.lyt.setSpacing(10)
+        self.setLayout(self.lyt)
 
         return
 
-    def paintEvent(self, event):
+    def __uibake(self):
 
-        painter = QtGui.QPainter(self)
-        painter.setRenderHint(QtGui.QPainter.Antialiasing)
-
-        # build the background shape
-        path = QtGui.QPainterPath()
-        #
-        brush = QtGui.QBrush()
-        brush.setColor(
-            self.palette.color(QtGui.QPalette.Normal, QtGui.QPalette.Shadow)
-        )
-        brush.setStyle(QtCore.Qt.SolidPattern)
-
-        rect = QtCore.QRectF(event.rect())
-
-        path.addRoundedRect(rect, self.border_radius, self.border_radius)
-
-        painter.setBrush(brush)
-        painter.fillPath(path, painter.brush())
-
-        # build the text
         if self.__title:
-            pen = QtGui.QPen()
-            pen.setColor(
-                self.palette.color(QtGui.QPalette.Disabled, QtGui.QPalette.Text)
+            self.lbl.setText(self.__title)
+            self.lbl.setHidden(False)
+        else:
+            self.lbl.setHidden(True)
+
+        if self.__icon:
+            qpixmap = QtGui.QPixmap(str(self.__icon))
+            qpixmap = qpixmap.scaled(
+                self.icon_size,
+                self.icon_size,
+                transformMode=QtCore.Qt.SmoothTransformation
             )
-            font = self.mainwindow.font()
+            qicon = QtGui.QIcon(qpixmap)
+            self.icon.setIcon(qicon)
+            self.icon.setHidden(False)
+        else:
+            self.icon.setHidden(True)
 
-            painter.setFont(font)
-            painter.setPen(pen)
-            painter.drawText(rect, QtCore.Qt.AlignLeft, self.__title)
+        # clear main layout first
+        while self.lyt.count():
+            self.lyt.takeAt(0)
+        # rebuild it
+        self.lyt.addWidget(self.bar)
+        for wgt in self.__widgets:
+            self.lyt.addWidget(wgt)
 
+        return
+
+    def add_widget(self, widget):
+        """
+        Add a new widgets at the end.
+        Update the UI after.
+
+        Args:
+            widget(QtWidgets.QWidget):
+        """
+        if widget not in self.__widgets:
+            self.__widgets.append(widget)
+        self.__uibake()
+        return
+
+    def clear_widgets(self):
+        """
+        Remove all stored widgets.
+        Update the UI after.
+        """
+        self.__widgets = list()
+        self.__uibake()
+        return
+
+    def set_title(self, title):
+        """
+        Update the UI after.
+
+        Args:
+            title(str):
+        """
+        self.__title = title
+        self.__uibake()
+        return
+
+    def set_icon(self, icon_path):
+        """
+        Update the UI after.
+
+        Args:
+            icon_path(str or Path): full path to the icon location
+        """
+        self.__icon = icon_path
+        self.__uibake()
+        return
+
+    def set_icon_tooltip(self, tooltip):
+        """
+        Args:
+            tooltip(str):
+        """
+        self.icon.setToolTip(tooltip)
         return
 
 
 class ResetButton(QtWidgets.QPushButton):
 
-    color = resources.Colors.reset
+    bgcolor = resources.Colors.reset
 
     def __init__(self, *args, **kwargs):
         super(ResetButton, self).__init__(*args, **kwargs)
 
         style = """
-        QPushButton {{
-            border-radius: 5px;
-            border: 1px solid rgb({0})
-            background-color: rgba({0}, 0.5)
-        }}
-        """.format(str(self.color)[1:][:-1])
+        color: rgb(250, 250, 250);
+        border-radius: 3px;
+        border: 1px solid rgba({0}, 0.5);
+        background-color: rgba({0}, 0.2);
+        padding: 5px;
+        padding-left: 10px;
+        padding-right: 10px;
+        """.format(str(self.bgcolor)[1:][:-1])
         self.setStyleSheet(style)
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy(
+                QtWidgets.QSizePolicy.Maximum,
+                QtWidgets.QSizePolicy.Maximum
+            )
+        )
 
         return
 
 
 class EditButton(ResetButton):
 
-    color = resources.Colors.edit
+    bgcolor = resources.Colors.edit
 
 
 """
@@ -707,6 +872,7 @@ class LabeledWidget(QtWidgets.QWidget):
 
     info_icon_size = 10
     txt_font_size = 10
+    min_height = 16
 
     def __init__(self, content=None, text=None, info_text=None):
         super(LabeledWidget, self).__init__()
@@ -734,7 +900,8 @@ class LabeledWidget(QtWidgets.QWidget):
         style_info = """
         QPushButton {{
             background-color: transparent;
-            border: unset;
+            margin: 2px;
+            border: 0;
         }}
 
         QToolTip {{
@@ -764,6 +931,7 @@ class LabeledWidget(QtWidgets.QWidget):
         # ==============
         # Modify Widgets
         # ==============
+        self.setMinimumHeight(self.min_height)
         self.lbl.setEnabled(False)
         # small text for label
         self.lbl.setStyleSheet(
@@ -781,13 +949,18 @@ class LabeledWidget(QtWidgets.QWidget):
         # self.info.setEnabled(False)
         # reset stylesheet, we only need the icon
         self.info.setStyleSheet(style_info)
-        self.info.setMaximumSize(self.info_icon_size, self.info_icon_size)
+        # self.info.setMaximumSize(self.info_icon_size, self.info_icon_size)
+        self.info.setSizePolicy(
+            QtWidgets.QSizePolicy(
+                QtWidgets.QSizePolicy.Maximum,
+                QtWidgets.QSizePolicy.Maximum
+            )
+        )
 
         # ==============
         # Modify Layouts
         # ==============
-        self.lyt_text.setAlignment(self.info, QtCore.Qt.AlignCenter)
-        self.lyt_text.addWidget(self.info)
+        self.lyt_text.addWidget(self.info, QtCore.Qt.AlignCenter)
         self.lyt_text.addWidget(self.lbl)
 
         temp_widget = QtWidgets.QWidget()
@@ -898,36 +1071,83 @@ class QModMenu(QtWidgets.QWidget):
         self.__statuses = dict()
         self.status = None
 
+        self.__uicook()
         self.add_status("default")
 
         return
+
+    def dict(self):
+        return {
+            "status": self.status,
+            "content": self.__content,
+            "statuses": self.__statuses
+        }
 
     """---
         UI
     """
 
-    def build(self):
+    def __uicook(self):
+        """
+        Build the ui for the first time
+        """
 
         self.lyt = QtWidgets.QVBoxLayout()
+        self.lyt_header = QtWidgets.QStackedLayout()
+        self.lyt_content = QtWidgets.QStackedLayout()
+        self.wgt_content_nul = QtWidgets.QWidget()
+        self.lyt_footer = QtWidgets.QStackedLayout()
+
         self.lyt.setSpacing(0)
+        self.wgt_content_nul.setHidden(True)
 
-        header = self.get_header_widget()
-        if header:
-            self.lyt.addWidget(header)
-
-        content = self.get_content()
-        if content:
-            self.lyt.addWidget(content)
-
-        footer = self.get_footer_widget()
-        if footer:
-            self.lyt.addWidget(footer)
+        self.lyt_content.addWidget(self.wgt_content_nul)
+        self.lyt.addLayout(self.lyt_header)
+        self.lyt.addLayout(self.lyt_content)
+        self.lyt.addLayout(self.lyt_footer)
 
         self.setLayout(self.lyt)
 
         logger.debug(
-            "[QModMenu][build] Finished for status=<{}>.".format(self.status)
+            "[QModMenu][__uicook] Finished for status=<{}>.".format(self.status)
         )
+        return
+
+    def __ui_bake(self):
+        """
+        Update the UI widgets content for the current active status.
+        """
+
+        # header
+        wgt = self.get_header_widget()
+        if wgt:
+            self.lyt_header.setCurrentWidget(wgt)
+
+        # content
+        wgt = self.get_content()
+        if wgt:
+            self.lyt_content.setCurrentWidget(wgt)
+        else:
+            self.lyt_content.setCurrentWidget(self.wgt_content_nul)
+
+        # footer
+        wgt = self.get_footer_widget()
+        if wgt:
+            self.lyt_footer.setCurrentWidget(wgt)
+
+        logger.debug(
+            "[{}][__ui_bake] Finished for current status <{}>."
+            "".format(self.__class__.__name__, self.status)
+        )
+        return
+
+    def update(self):
+        logger.debug(
+            "[{}][update] Called from {}."
+            "".format(self.__class__.__name__, inspect.stack()[1][3])
+        )  # TODO removve this (not py3)
+        self.__ui_bake()
+
         return
 
     def set_content_hidden(self, hidden):
@@ -960,17 +1180,67 @@ class QModMenu(QtWidgets.QWidget):
 
     @__check_status_exists_deco
     def __reset_status(self, status_id):
+        self.__del_widgets_status(status_id)
         self.__statuses[status_id] = self.__default_status
+        logger.debug(
+            "[{}][__reset_status] Finished for status <{}>."
+            "".format(self.__class__.__name__, status_id)
+        )
+        return
+
+    @__check_status_exists_deco
+    def __del_widgets_status(self, status_id):
+        """
+        Delete definitively the widgets holded in the given status.
+
+        Args:
+            status_id(object):
+        """
+
+        content = self.__statuses[status_id]  # type: dict
+        _count = 0
+
+        for _, wgt in content.items():
+
+            if wgt is None:
+                continue
+
+            # removeWidget doesnt raise error if wgt not added
+            self.lyt_header.removeWidget(wgt)
+            self.lyt_footer.removeWidget(wgt)
+            wgt.setParent(None)  # delete the widget
+            _count += 1
+            continue
+
+        logger.debug(
+            "[{}][__del_widgets_status] Deleted {} widgets for status <{}>"
+            "".format(self.__class__.__name__, _count, status_id)
+        )
         return
 
     @__check_status_exists_deco
     def __del_status(self, status_id):
+        """
+        Remove the given status from the list.
+        !! Also delete the widgets it was holding
+
+        Args:
+            status_id(object):
+        """
+        self.__del_widgets_status(status_id)
         del self.__statuses[status_id]
+        logger.debug(
+            "[{}][__del_status] Finished for status <{}>."
+            "".format(self.__class__.__name__, status_id)
+        )
+
         return
 
     @__check_status_exists_deco
     def set_status_current(self, status_id):
         """
+        Set the new currently used status.
+        Update the UI too.
 
         Args:
             status_id(any): o
@@ -979,6 +1249,11 @@ class QModMenu(QtWidgets.QWidget):
         Devnote: Can only take on argument !!
         """
         self.status = status_id
+        self.update()
+        logger.debug(
+            "[{}][set_status_current] Finished new status is <{}>."
+            "".format(self.__class__.__name__, status_id)
+        )
         return
 
     def add_status(self, status_id, replace_default=False, set_to_current=True):
@@ -993,10 +1268,10 @@ class QModMenu(QtWidgets.QWidget):
                 If true, also change the current status to the newly added one.
 
         """
-        if replace_default:
+        if replace_default and "default" in self.get_status_list():
             self.__del_status("default")
 
-        self.__statuses[status_id] = self.__default_status
+        self.__statuses[status_id] = self.__default_status.copy()
 
         if set_to_current:
             self.set_status_current(status_id=status_id)
@@ -1029,6 +1304,10 @@ class QModMenu(QtWidgets.QWidget):
 
     def remove_status(self, status_id=None, all_status=False):
         """
+        Remove the given status. If it was the current status the new one
+        is the last status in the status list.
+        !! Also delete the widgets it was containing
+
         Args:
             status_id(any or None): If None passed, use the current status.
             all_status(bool): True to reset all statuses.
@@ -1048,11 +1327,15 @@ class QModMenu(QtWidgets.QWidget):
         # if we have removed all the statuses, add back the default one.
         if not self.get_status_list():
             self.add_status("default")
+        else:
+            self.set_status_current(self.get_status_list()[-1])
 
         return
 
     def reset_status(self, status_id=None, all_status=False):
         """
+        Remove the widgets sets for the given status. Make it empty.
+
         Args:
             status_id(any or None): If None passed, use the current status.
             all_status(bool): True to reset all statuses.
@@ -1078,7 +1361,19 @@ class QModMenu(QtWidgets.QWidget):
         Args:
             content_widget(QtWidgets.QWidget):
         """
+        # remove and delete the previous content widget
+        previous = self.get_content()
+        if previous is not None:
+            self.lyt_content.removeWidget(previous)
+            previous.setParent(None)  # delete it
+            logger.debug(
+                "[{}][set_content] Removed previous widget {}."
+                "".format(self.__class__.__name__, previous)
+            )
+
         self.__content = content_widget
+        self.lyt_content.addWidget(content_widget)
+        self.update()
         return
 
     def get_content(self):
@@ -1102,6 +1397,8 @@ class QModMenu(QtWidgets.QWidget):
 
         self.is_status_existing(status_id, raise_error=True)
         self.__statuses[status_id]["header"] = widget
+        self.lyt_header.addWidget(widget)
+        self.update()
 
         return
 
@@ -1129,7 +1426,11 @@ class QModMenu(QtWidgets.QWidget):
         if not status_id:
             status_id = self.get_status_current()
 
+        self.is_status_existing(status_id, raise_error=True)
+
         self.__statuses[status_id]["footer"] = widget
+        self.lyt_footer.addWidget(widget)
+        self.update()
 
         return
 
@@ -1147,7 +1448,7 @@ class QModMenu(QtWidgets.QWidget):
         return self.__statuses[status_id]["footer"]
 
 
-class GSVPropertiesWidget(QtWidgets.QWidget):
+class GSVPropertiesWidget(QtWidgets.QFrame):
     """
     Widget used to display the properties of a single GSV.
     It's name, the value sit can take, and it's associated Nodes.
@@ -1305,11 +1606,22 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         main_window = UI4.App.MainWindow.GetMainWindow()
         qpalette = main_window.palette()  # type: QtGui.QPalette
         color_disabled = qpalette.color(qpalette.Disabled, qpalette.Text)
+        darkbgcolor = qpalette.color(
+            qpalette.Normal,
+            qpalette.Shadow
+        )
+
         style_lbl = """
             border: 1px solid rgba({0}, 0.25);
             border-radius: 3px;
             padding: 3px;
         """.format(str(color_disabled.getRgb()[:-1])[1:][:-1])
+
+        style = """
+        QFrame#{} {{
+            border-left: 2px solid rgba{};
+        }}
+        """.format(self.__class__.__name__, darkbgcolor.getRgb())
 
         # ==============
         # Create Layouts
@@ -1330,6 +1642,11 @@ class GSVPropertiesWidget(QtWidgets.QWidget):
         # Have to use .content on LabeledWidget() for now,
         # see to remove this drawback later
         # ==============
+
+        self.setObjectName(str(self.__class__.__name__))
+        self.setContentsMargins(5, 10, 5, 10)
+        self.setStyleSheet(style)
+
         self.lbl_name.setEnabled(False)
         self.lbl_name.set_text("Name")
         self.lbl_name.content.setStyleSheet(style_lbl)
