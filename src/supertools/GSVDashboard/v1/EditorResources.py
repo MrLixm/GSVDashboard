@@ -46,3 +46,4 @@ class Icons:
     status_node_getter = os.path.join(__root, "status_node_getter.svg")
     status_node_setter = os.path.join(__root, "status_node_setter.svg")
     info = os.path.join(__root, "info.svg")
+    logo = os.path.join(__root, "gsvdb-logo.svg")

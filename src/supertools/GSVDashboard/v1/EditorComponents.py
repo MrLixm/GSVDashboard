@@ -35,7 +35,9 @@ __all__ = [
     "ResetButton",
     "EditButton",
     "GSVTreeWidget",
-    "UpdateButton"
+    "UpdateButton",
+    "VLabeledWidget",
+    "HLabeledWidget"
 ]
 
 logger = logging.getLogger("{}.EditorComponents".format(c.name))
@@ -818,7 +820,7 @@ class QTitleBar(QtWidgets.QWidget):
         while self.lyt.count():
             self.lyt.takeAt(0)
         # rebuild it
-        self.lyt.addWidget(self.bar)
+        self.lyt.addWidget(self.bar, QtCore.Qt.AlignLeft)
         for wgt in self.__widgets:
             self.lyt.addWidget(wgt)
 
@@ -915,10 +917,13 @@ class UpdateButton(QtWidgets.QPushButton):
         super(UpdateButton, self).__init__(*args, **kwargs)
 
         style = """
-            QPushButton {
+        QPushButton {
             border: unset;
             background-color: transparent;
             padding: 2px;
+        }
+        QPushButton:hover {
+            icon-size: 150%;
         }
         """
         self.setStyleSheet(style)
@@ -943,7 +948,7 @@ Higher-level widget
 """
 
 
-class LabeledWidget(QtWidgets.QWidget):
+class VLabeledWidget(QtWidgets.QWidget):
     """
     Wrap an existing widget with a bottom info line composed of an optional
     info icon (with a tooltip) and a label.
@@ -960,12 +965,12 @@ class LabeledWidget(QtWidgets.QWidget):
         info_text(str): used in the info icon tooltip
 
     """
-
+    direction = QtWidgets.QBoxLayout.TopToBottom
     info_icon_size = 10
     txt_font_size = 10
 
     def __init__(self, content=None, text=None, info_text=None):
-        super(LabeledWidget, self).__init__()
+        super(VLabeledWidget, self).__init__()
         self.__content = None
         self.__text = None
         self.__info = None
@@ -1016,7 +1021,7 @@ class LabeledWidget(QtWidgets.QWidget):
         # ==============
         # Create Layouts
         # ==============
-        self.lyt = QtWidgets.QVBoxLayout()
+        self.lyt = QtWidgets.QBoxLayout(self.direction)
         self.lyt_text = QtWidgets.QHBoxLayout()
 
         # ==============
@@ -1121,6 +1126,10 @@ class LabeledWidget(QtWidgets.QWidget):
         self.__info = info_text
         self.__ui_bake()
         return
+
+
+class HLabeledWidget(VLabeledWidget):
+    direction = QtWidgets.QBoxLayout.RightToLeft
 
 
 # noinspection PyArgumentList
@@ -1576,8 +1585,8 @@ class GSVPropertiesWidget(QtWidgets.QFrame):
             i.e you go from edited to editable
 
     Notes:
-        widget being instance of LabeledWidget need to be accessed through
-        LabeledWidget().content.setStyleSheet(...)
+        widget being instance of VLabeledWidget need to be accessed through
+        VLabeledWidget().content.setStyleSheet(...)
 
     """
 
@@ -1729,14 +1738,14 @@ class GSVPropertiesWidget(QtWidgets.QFrame):
         # ==============
         # Create Widgets
         # ==============
-        self.lbl_name = LabeledWidget(QtWidgets.QLabel())
-        self.cbb_value = LabeledWidget(QtWidgets.QComboBox())
-        self.tw_nodes = LabeledWidget(NodeTreeWidget())
+        self.lbl_name = VLabeledWidget(QtWidgets.QLabel())
+        self.cbb_value = VLabeledWidget(QtWidgets.QComboBox())
+        self.tw_nodes = VLabeledWidget(NodeTreeWidget())
 
         # ==============
         # Modify Widgets
         #
-        # Have to use .content on LabeledWidget() for now,
+        # Have to use .content on VLabeledWidget() for now,
         # see to remove this drawback later
         # ==============
 

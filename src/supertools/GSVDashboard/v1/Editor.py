@@ -30,7 +30,9 @@ from .EditorComponents import (
     ResetButton,
     EditButton,
     GSVTreeWidget,
-    UpdateButton
+    UpdateButton,
+    HLabeledWidget
+
 )
 # import for type hints only
 try:
@@ -185,7 +187,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # ==============
         self.ttlb_header = QTitleBar(title="GSVs")
         self.btn_update = UpdateButton()
-        self.cbb_source = QtWidgets.QComboBox()
+        self.cbb_source = HLabeledWidget(QtWidgets.QComboBox())
         self.tw1 = GSVTreeWidget()
         self.mmnu_props = QModMenu()
 
@@ -214,12 +216,10 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             "edited by this super tool."
         )
         # QToolBars
-        self.ttlb_header.add_widget(self.btn_update)
+        self.ttlb_header.set_icon(resources.Icons.logo)
         self.ttlb_props_hd_locked.set_icon(resources.Icons.status_l_locked)
         self.ttlb_props_hd_reset.set_icon(resources.Icons.status_l_edited)
-        self.ttlb_props_hd_reset.add_widget(self.btn_reset)
         self.ttlb_props_hd_edit.set_icon(resources.Icons.status_l_viewed)
-        self.ttlb_props_hd_edit.add_widget(self.btn_edit)
 
         # QModeMenu
         mgprop_setup = {
@@ -248,6 +248,28 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.mmnu_props.set_content(self.gsv_props_wgt)
         self.mmnu_props.update()
 
+        # QComboBox
+        self.cbb_source.set_text("Scene Parsing")
+        self.cbb_source.set_info(
+            "This determine how the scene is parsed to find GSV Nodes.\n"
+            "<logical_upstream> : only process node that contribute to building"
+            " the scene and are connected to this node.\n"
+            "<all_scene> : all nodes in the scene, no matter if "
+            "they are connected or not.\n"
+            "<upstream> : all nodes upstream of this node no matter if they "
+            "contribute to the scene or not."
+        )
+        self.cbb_source.content.clear()
+        self.cbb_source.content.addItems(self.__node.parsing_modes)
+        #   default is logical_upstream
+        self.cbb_source.content.setCurrentText(self.__node.parsing_modes[0])
+        self.cbb_source.content.setSizePolicy(
+            QtWidgets.QSizePolicy(
+                QtWidgets.QSizePolicy.Maximum,
+                QtWidgets.QSizePolicy.Maximum
+            )
+        )
+
         # ==============
         # Add to Layouts
         # ==============
@@ -258,11 +280,17 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.lyt_m.addWidget(self.tw1)
         self.lyt_m.addWidget(self.mmnu_props)
 
+        self.ttlb_header.add_widget(self.cbb_source)
+        self.ttlb_header.add_widget(self.btn_update)
+        self.ttlb_props_hd_reset.add_widget(self.btn_reset)
+        self.ttlb_props_hd_edit.add_widget(self.btn_edit)
+
         # ==============
         # Connections
         # ==============
 
         self.tw1.itemSelectionChanged.connect(self.__tw_selection_changed)
+        self.cbb_source.content.activated.connect(self.__tw_update)
         self.btn_update.clicked.connect(self.__tw_update)
         self.btn_reset.clicked.connect(self.gsv_props_wgt.set_unedited)
         self.btn_edit.clicked.connect(self.gsv_props_wgt.set_edited)
@@ -282,7 +310,12 @@ class GSVDashboardEditor(QtWidgets.QWidget):
     def __tw_update(self):
         """
         """
-        parse_mode = "logical_upstream"  # TODO
+        parse_mode = self.cbb_source.content.currentText()
+        if not parse_mode:
+            raise ValueError(
+                "[__tw_update] Parse mode queried from QComboBox return nul."
+            )
+
         logger.debug(
             "[{}][__tw_update] Started with mode: <{}>."
             "".format(self.__class__.__name__, parse_mode)
@@ -292,9 +325,8 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.tw1.clear()
 
         st_gsvs = self.__node.get_gsvs(mode=parse_mode)
-        qtwi = None
         for st_gsv in st_gsvs:
-            qtwi = TreeWidgetItemGSV(st_gsv=st_gsv, parent=self.tw1)
+            TreeWidgetItemGSV(st_gsv=st_gsv, parent=self.tw1)
 
         self.__tw_select_last_selected()
         self.__tw_selection_changed()
