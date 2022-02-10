@@ -9,7 +9,7 @@ except ImportError:
     pass
 
 __all__ = [
-    "get_upstream_nodes",
+    "SceneParser",
     "ParseSettings"
 ]
 
@@ -21,6 +21,8 @@ class ParseSettings(dict):
 
     Used to configure the output result of the scene parsing.
 
+    [include_groups](bool)
+         If True, before visiting its content, include the group node in the output
     [excluded.asGroupsNodeType](list of str):
         list of node type that should not be considered as groups and children
         are as such not processed.
@@ -99,103 +101,168 @@ class ParseSettings(dict):
         return
 
 
-def get_upstream_nodes(source_node, source_port, settings):
+class SceneParser(object):
     """
-    From a given node, find all upstream nodes connected.
+    Attributes:
 
-    Groups node themself are not included in the output but their children are
-    processed (unless contrary specified in settings).
+        __buffer(set of NodegraphAPI.Node):
+            list of visited node in "pseudo-order" after a parsing operation.
+            Must be returned by the parsing function and reset after.
 
-    Args:
-        source_node(NodegraphAPI.Node):
-            first index is always a node, second an optional source port.
-            Port should be on the same node as the passed node.
-        source_port(NodegraphAPI.Port or None):
+        visited_ports (list of NodegraphAPI.Port):
+            we keep a list of the port we progressively visit to avoid visiting
+            them multiples times.
+
         settings(ParseSettings):
-            a regular dict with a fixed structure. See ParseSettings docstring.
-
-    Returns:
-        list of NodegraphAPI.Node:
-            list of visited node in order. In the case of a merge, the first
-                branch (index 0) is visited first and recursively to the top,
-                and then the second branch, ...
+            Options for the scene parsing
     """
 
-    buffer = list()
-    if source_port and source_port.getNode() != source_node:
-        raise TypeError(
-            "Submited source_port argument doesn't belong to the submited "
-            " source_node argument: source_node=<{}>, source_port's node=<{}>"
-            "".format(source_node, source_port.getNode())
-        )
+    def __init__(self, source=None):
 
-    # When we got a groupNode we need to also parse what's inside (unless
-    # the node it is excluded)
-    # A groupNode is passed when going in and going out of a group
-    if isinstance(source_node, NodegraphAPI.GroupNode) and (
-            source_node.getType() not in settings.exluded_asGroupsNodeType
-    ):
+        self.source = source
+        self.__buffer = list()
+        self.settings = ParseSettings()
 
-        # include the group node before visiting its content, if specified.
-        if settings.include_groups:
-            buffer.append(source_node)
+        return
 
-        # if we passed a port we can just find what child node is connected
-        if source_port:
-            # at first we assume we a going inside the group = return port
-            __port = source_node.getReturnPort(source_port.getName())
+    def __get_upstream_nodes(self, source):
+        """
+        From a given node, find all upstream nodes connected.
 
-            if not __port:
-                # we are going out of a group so find the group input port
-                __port = source_node.getInputPort(source_port.getName())
+        Groups node themself are not included in the output but their children are
+        processed (unless contrary specified in settings).
 
-            source_port = __port.getConnectedPorts()[0]
-            # replace the group node with its last connected child
-            source_node = source_port.getNode()
+        Args:
+            source(NodegraphAPI.Node or NodegraphAPI.Port):
+                object to start the parsing from.
+
+        """
+
+        if isinstance(source, NodegraphAPI.Port):
+            source_port = source
+            source_node = source.getNode()
+        elif isinstance(source, NodegraphAPI.Node):
+            source_port = None
+            source_node = source
+        else:
+            raise TypeError(
+                "Submited source argument <{}> is not supported."
+                "Must be Port or Node."
+                "".format(source)
+            )
+
+        # When we got a groupNode we need to also parse what's inside (unless
+        # the node it is excluded). To do so we swap the passed inputPort/node
+        # of the group by the ones from the first children in the group.
+        # (i): A groupNode is passed as arg when going in and going out of a group
+        if isinstance(
+            source_node,
+            NodegraphAPI.GroupNode
+        ) and (
+            source_node.getType() not in self.settings.exluded_asGroupsNodeType
+        ):
+
+            # If specified we add the groupNode to the buffer, but only
+            # if we are sure there is no input else it would be added multiple
+            #  time to the buffer (going in and out) and would stop the script.
+            # If there is input it is added only when goign out.
+            if self.settings.include_groups and not source_node.getInputPorts():
+                self.__buffer.append(source_node)
+
+            # if we passed a port we can just find what child node is connected
+            if source_port:
+                # at first we assume we a going inside the group = return port
+                __port = source_node.getReturnPort(source_port.getName())
+
+                if not __port:
+                    # we are going out of a group so find the group input port
+                    __port = source_node.getInputPort(source_port.getName())
+                    # the group was not added when going in so add it now
+                    if self.settings.include_groups:
+                        self.__buffer.append(source_node)
+
+                source_port = __port.getConnectedPorts()[0]
+                # replace the group node with its last connected child
+                source_node = source_port.getNode()
+
+            else:
+                # if no port supplied we assume the group only have one output
+                source_port = source_node.getOutputPortByIndex(0)
+                # and if he doesn't even have an output port ...
+                if not source_port:
+                    raise TypeError(
+                        "The given source_obj[0] is a GroupNode with no output "
+                        "port which is not currently supported."
+                    )
+                source_port = source_node.getReturnPort(source_port.getName())
+                source_port = source_port.getConnectedPorts()[0]
+                source_node = source_port.getNode()
 
         else:
-            # if no port supplied we assume the group only have one output
-            source_port = source_node.getOutputPortByIndex(0)
-            # and if he doesn't even have an output port ...
-            if not source_port:
-                raise TypeError(
-                    "The given source_obj[0] is a GroupNode with no output "
-                    "port which is not currently supported."
-                )
-            source_port = source_node.getReturnPort(source_port.getName())
-            source_port = source_port.getConnectedPorts()[0]
-            source_node = source_port.getNode()
+            pass
 
-    else:
-        pass
+        self.__buffer.append(source_node)
 
-    buffer.append(source_node)
-
-    # We need to find a list of port connected to this node
-    connected_ports = node_get_connections(
-        node=source_node,
-        logical=settings.logical
-    )
-    # Node doesn't have any inputs so return it.
-    if not connected_ports:
-        return buffer
-
-    for connected_port in connected_ports:
-        buffer.extend(
-            get_upstream_nodes(
-                source_node=connected_port.getNode(),
-                source_port=connected_port,
-                settings=settings
-            )
+        # We need to find a list of port connected to this node
+        connected_ports = node_get_connections(
+            node=source_node,
+            logical=self.settings.logical
         )
-        continue
+        # Node doesn't have any inputs so return it.
+        if not connected_ports:
+            return
 
-    return buffer
+        # now process all the input of this node
+        for connected_port in connected_ports:
+
+            # avoid processing multiples times the same node/port
+            if connected_port.getNode() in self.__buffer:
+                continue
+
+            self.__get_upstream_nodes(
+                source=connected_port
+            )
+
+            continue
+
+        return
+
+    def __reset(self):
+        """
+        Operations done after a parsing to reset the instance before the next
+        parsing.
+        """
+        self.visited_ports = list()
+        self.settings = ParseSettings()
+        return
+
+    def get_upstream_nodes(self, source=None):
+        """
+        Make sure the settings attributes is set accordingly before calling.
+
+        Args:
+            source(NodegraphAPI.Node or NodegraphAPI.Port):
+                source nodegraph object from where to start the upstream parsing
+
+        Returns:
+            set of NodegraphAPI.Node:
+        """
+        source = source or self.source
+        if not source:
+            raise ValueError(
+                "[get_upstream_nodes] Source argument is nul. Set the class "
+                "source attribute or pass a source argument to this method."
+            )
+        self.__get_upstream_nodes(source=source)
+        out = self.__buffer  # save the buffer before reseting it
+        self.__reset()
+
+        return out
 
 
 def node_get_connections(node, logical=True):
     """
-    From a given node return a list of the coonected output ports .
+    From a given node return a set of the connected output ports .
 
     If logical is set to True only port's nodes contributing to building
     the scene as returned. For example, in the case of a VariableSwitch,
@@ -233,25 +300,24 @@ def node_get_connections(node, logical=True):
 def __test():
     """
     Example use case of the above functions.
-    # TODO remove this function before publish
     """
 
     # we avoid visiting GT nodes content.
     setting_dict = {
+        "include_groups": True,
         "excluded": {
             "asGroupsNodeType": ["GafferThree"]
         },
-        "logical": True
+        "logical": False
     }
     excluded_ntype = ["Dot"]
 
     sel = NodegraphAPI.GetAllSelectedNodes()  # type: list
 
-    result = get_upstream_nodes(
-        source_node=sel[0],
-        source_port=None,
-        settings=ParseSettings(setting_dict),
-    )
+    scene = SceneParser()
+    scene.settings = ParseSettings(setting_dict)
+    result = scene.get_upstream_nodes(sel[0])
+
     # removed nodes of unwanted type
     result = filter(lambda node: node.getType() not in excluded_ntype, result)
     # convert nodes objects to string

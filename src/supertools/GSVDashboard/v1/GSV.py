@@ -1,5 +1,6 @@
 """
 """
+import pprint
 from collections import OrderedDict
 import sys
 import logging
@@ -17,7 +18,10 @@ except ImportError:
 import NodegraphAPI
 
 from . import c
-from . import SceneParse
+from .SceneParse import (
+    SceneParser,
+    ParseSettings
+)
 
 
 __all__ = ["GSVNode", "GSVScene", "GSVObject", "GSVSettings"]
@@ -77,6 +81,7 @@ class GSVSettings(dict):
             }
         },
         "parsing": {
+            # first index is default
             "mode": ["logical_upstream", "all_scene", "upstream"],
             "source": None,
             "excluded": {
@@ -152,7 +157,8 @@ class GSVSettings(dict):
 
         return
 
-    def get_expected(self, keypath):
+    @classmethod
+    def get_expected(cls, keypath):
         """
         Args:
             keypath(str): path to nested key, using "." as a key seperator.
@@ -163,7 +169,7 @@ class GSVSettings(dict):
 
         # access nested keys:value pairs using the "." separator
         keypath = keypath.split(".")  # type: list
-        value = self.__expected
+        value = cls.__expected
         for key in keypath:
             value = value[key]
 
@@ -500,11 +506,19 @@ class GSVScene(object):
         self.__parse_post_actions()
         return
 
-    def __parse_logical_upstream(self):
+    def __parse_upstream(self, logical):
         """
         Build the <nodes> attribute.
+
+        Args:
+            logical(bool):
+                True to process only logical connections between nodes.
         """
         # node order must be maintained
+        # if not logical:
+        #     raise NotImplementedError(
+        #         "__parse_upstream is not implemented yet."
+        #     )
 
         source = self.settings["parsing"]["source"]
         if not source:
@@ -514,18 +528,17 @@ class GSVScene(object):
                 "no source has been submitted through settings"
             )
 
-        settings = SceneParse.ParseSettings()
+        settings = ParseSettings()
         settings.include_groups = True
-        settings.logical = True
+        settings.logical = logical
         settings.exluded_asGroupsNodeType = self.settings[
             "parsing"]["excluded"]["asGroupsNodeType"]
 
-        # list of all upstream logical nodes, need to be filtered
-        upstream_nodes = SceneParse.get_upstream_nodes(
-            source_node=source,
-            source_port=None,
-            settings=settings
-        )
+        # list of all upstream logical nodes, need to be filtered after
+        scene = SceneParser()
+        scene.settings = settings
+        upstream_nodes = scene.get_upstream_nodes(source)
+
         for knode in upstream_nodes:
 
             # filter nodes using nodeTypes specified in settings
@@ -538,15 +551,6 @@ class GSVScene(object):
 
         self.__parse_post_actions()
         return
-
-    def __parse_upstream(self):
-        """
-        Build the <nodes> attribute.
-        """
-
-        # node order must be maintained
-        # TODO
-        raise NotImplementedError("__parse_upstream is not implemented yet.")
 
     def __parse_post_actions(self):
         """
@@ -574,10 +578,10 @@ class GSVScene(object):
             self.__parse_all()
 
         elif mode == "logical_upstream":
-            self.__parse_logical_upstream()
+            self.__parse_upstream(logical=True)
 
         elif mode == "upstream":
-            self.__parse_upstream()
+            self.__parse_upstream(logical=False)
 
         else:
             raise ValueError(

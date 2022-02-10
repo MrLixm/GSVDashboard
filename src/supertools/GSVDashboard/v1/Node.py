@@ -95,6 +95,8 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
 
     _hints = {}
 
+    parsing_modes = GSV.GSVSettings.get_expected("parsing.mode")
+
     def __init__(self):
 
         self.hideNodegraphGroupControls()
