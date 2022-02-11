@@ -103,9 +103,8 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             return
 
         self.__frozen = False
-        self.__update_tw1 = False
         self.__setup_event_handlers(True)
-
+        self.__tw_update()
         return
 
     def hideEvent(self, event):
@@ -138,8 +137,12 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             "port_connect",
             "parameter_finalizeValue",
             "parameter_setValue",
+            "parameter_setKey",  # don't know why/if needed ?
+            "parameter_replaceXML",  # don't know why/if needed ?
+            "parameter_removeKey", # don't know why/if needed ?
             "node_setBypassed",
-            "node_setName"
+            "node_setName",
+            "undo_openGroup",
         ]
         for event in events4twupdate:
             Utils.EventModule.RegisterCollapsedHandler(
@@ -183,8 +186,8 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             return
         # uncomment the under for debuging
         # for event in event_data:
-            # event_source = event[2]
-            # print("{}: {}".format(event[0], event_source))
+        #     event_source = event[2]
+        #     print("{}: {}".format(event[0], event_source))
         self.__update_tw1 = True
 
         return
@@ -423,12 +426,17 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             stgsv(SuperToolGSV):
             new_value(str):
         """
+
         if new_value is None:
             logger.debug(
                 "[{}][__gsv_set_value] new_value arg passed is None. Returning."
                 "".format(self.__class__.__name__)
             )
             return
+
+        # weirdly on Katana 4.0 signal seems to passe something that was
+        # not a string. Issue was not there on Katana 4.5
+        new_value = str(new_value)
 
         self.__node.edit_gsv(name=stgsv.name, value=new_value)
         self.__tw_update()

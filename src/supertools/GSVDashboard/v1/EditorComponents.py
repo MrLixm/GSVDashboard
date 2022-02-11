@@ -20,6 +20,7 @@
 """
 import inspect
 import logging
+import os.path
 from abc import abstractmethod
 
 try:
@@ -556,7 +557,7 @@ class NodeTreeWidget(QtWidgets.QTreeWidget):
         # Building menu
         menu = QtWidgets.QMenu()
 
-        act_select = QtWidgets.QAction("Select and Edit the Node")
+        act_select = QtWidgets.QAction("Select and Edit the Node", menu)
         act_select.triggered.connect(selected_item.gsv_node.select_edit)
         menu.addAction(act_select)
 
@@ -612,6 +613,7 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
         header = self.header()
         # The user can resize the section
         header.setSectionResizeMode(header.Interactive)
+        header.setSectionResizeMode(0, header.ResizeToContents)
 
         self.itemSelectionChanged.connect(self.__on_selection_changed)
 
@@ -954,7 +956,7 @@ class UpdateButton(QtWidgets.QPushButton):
         self.setIcon(
             QtGui.QIcon(
                 UI4.Util.IconManager.GetPixmap(
-                    r"Icons\update_active20_hilite.png"
+                    os.path.join("Icons", "update_active20_hilite.png")
                 )
             )
         )
