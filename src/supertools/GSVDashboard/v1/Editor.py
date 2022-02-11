@@ -2,7 +2,6 @@
 
 """
 import logging
-import pprint
 
 try:
     from typing import List, Optional, Tuple, Union
@@ -146,14 +145,18 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         Update ``tw1`` if ``__update_tw1`` is set to True.
         """
 
-        # if self.__update_tw1:
-        #     self.__tw_update()
-        #     self.__update_tw1 = False
+        if self.__update_tw1:
+            self.__tw_update()
+            self.__update_tw1 = False
 
         return
 
     def __process_event(self, event_data):
         """
+        Filter actions that need to performed depending of the event.
+        In our case ther eis no special case, all events, no matter the source
+        node led to an update of the tw.
+
         Args:
             event_data(list of list):
                 event data from katana
@@ -161,13 +164,11 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         """
         if self.__update_tw1:
             return
-
-        for event in event_data:
-
-            event_source = event[2]
-            print("{}: {}".format(event[0], event_source))  # TODO remove
-
-            self.__update_tw1 = True
+        # uncomment the under for debuging
+        # for event in event_data:
+            # event_source = event[2]
+            # print("{}: {}".format(event[0], event_source))
+        self.__update_tw1 = True
 
         return
 
@@ -216,7 +217,6 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             "edited by this super tool."
         )
         # QToolBars
-        self.ttlb_header.set_icon(resources.Icons.logo)
         self.ttlb_props_hd_locked.set_icon(resources.Icons.status_l_locked)
         self.ttlb_props_hd_reset.set_icon(resources.Icons.status_l_edited)
         self.ttlb_props_hd_edit.set_icon(resources.Icons.status_l_viewed)
@@ -342,6 +342,8 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         """
         gsv_name = self.tw1.last_selected
         if not gsv_name:
+            # select a "random" treeW item instead
+            self.tw1.setCurrentItem(self.tw1.get_all_items()[0])
             return
 
         to_select = None

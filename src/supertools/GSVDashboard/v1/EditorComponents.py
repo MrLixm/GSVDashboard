@@ -879,6 +879,7 @@ class QTitleBar(QtWidgets.QWidget):
         return
 
 
+
 class ResetButton(QtWidgets.QPushButton):
 
     bgcolor = resources.Colors.reset
