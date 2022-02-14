@@ -19,6 +19,7 @@
 
 """
 import logging
+import time
 
 try:
     from typing import List, Optional, Tuple, Union
@@ -81,6 +82,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.__node = node  # type: GSVDashboardNode
         self.__node.upgrade()
         self.__frozen = True
+        self.__update_tw1 = False
 
         self.__uicook()
 
@@ -130,6 +132,12 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         Args:
             enabled(bool): Set if the even handler is enabled or not.
         """
+        # this is once the events are finished, actually update tw1
+        Utils.EventModule.RegisterCollapsedHandler(
+            self.__idle_callback,
+            "event_idle",
+            enabled=enabled
+        )
 
         # these are the events that will update the treewidget
         events4twupdate = [
@@ -139,7 +147,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             "parameter_setValue",
             "parameter_setKey",  # don't know why/if needed ?
             "parameter_replaceXML",  # don't know why/if needed ?
-            "parameter_removeKey", # don't know why/if needed ?
+            "parameter_removeKey",  # don't know why/if needed ?
             "node_setBypassed",
             "node_setName",
             "undo_openGroup",
@@ -151,20 +159,16 @@ class GSVDashboardEditor(QtWidgets.QWidget):
                 enabled=enabled
             )
 
-        # this is once the events are finished, actually update tw1
-        Utils.EventModule.RegisterCollapsedHandler(
-            self.__idle_callback,
-            "event_idle",
-            enabled=enabled
-        )
         return
 
     def __idle_callback(self, *args, **kwargs):
         """
         Called when an event is finished.
         Update ``tw1`` if ``__update_tw1`` is set to True.
-        """
 
+        !! While the node is edited this is run indefinitively. Don't log/run
+        anything that is not a in a condition.
+        """
         if self.__update_tw1:
             self.__tw_update()
             self.__update_tw1 = False
@@ -330,6 +334,8 @@ class GSVDashboardEditor(QtWidgets.QWidget):
     def __tw_update(self):
         """
         """
+        s_time = time.clock()
+
         parse_mode = self.cbb_source.content.currentText()
         if not parse_mode:
             raise ValueError(
@@ -350,8 +356,11 @@ class GSVDashboardEditor(QtWidgets.QWidget):
 
         self.__tw_select_last_selected()
         self.__tw_selection_changed()
-        logger.debug(
-            "[{}][__tw_update] Finished.".format(self.__class__.__name__)
+
+        s_time = time.clock() - s_time
+        logger.info(
+            "[{}][__tw_update] Finished in {}s."
+            "".format(self.__class__.__name__, s_time)
         )
         return
 
@@ -363,7 +372,11 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         gsv_name = self.tw1.last_selected
         if not gsv_name:
             # select a "random" treeW item instead
-            self.tw1.setCurrentItem(self.tw1.get_all_items()[0])
+            all_items = self.tw1.get_all_items()
+            # no widgets in tw, just return
+            if not all_items:
+                return
+            self.tw1.setCurrentItem(all_items[0])
             return
 
         to_select = None

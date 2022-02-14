@@ -37,6 +37,7 @@ from Katana import (
 import PackageSuperToolAPI
 
 from . import c
+from . import config
 from . import GSV
 
 __all__ = ['GSVDashboardNode', "SuperToolGSV"]
@@ -306,13 +307,12 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
         """
         output = list()  # type: List[SuperToolGSV]
         # dict will use the default build
-        settings = GSV.GSVSettings()
+        settings = config.get_parse_settings()
 
         if mode not in settings.get_expected("parsing.mode"):
             raise ValueError(
                 "<mode> argument <{}> is not supported.".format(mode)
             )
-
         settings["parsing"]["mode"] = mode
         # use this katana node as the source for upstream nodes parsing.
         settings["parsing"]["source"] = self

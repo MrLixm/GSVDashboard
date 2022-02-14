@@ -61,7 +61,7 @@ class GSVSettings(dict):
     """
 
     __default = {
-        "excluded": ["gafferState"],
+        "excluded": [],
         "nodes": {
             "VariableSwitch": {
                 "action": "getter",
@@ -83,7 +83,7 @@ class GSVSettings(dict):
             "mode": "logical_upstream",
             "source": None,
             "excluded": {
-                "asGroupsNodeType": ["GafferThree"]
+                "asGroupsNodeType": []
             },
         }
     }
@@ -146,7 +146,7 @@ class GSVSettings(dict):
 
             for nvkey, nvvalue in nvalue.items():
 
-                assert nkey in node_key_list, \
+                assert nvkey in node_key_list, \
                     pre + "Key <{}> is not supported: must be one of <{}>" \
                           "".format(nvkey, node_key_list)
 

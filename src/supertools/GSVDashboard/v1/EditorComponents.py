@@ -1109,7 +1109,7 @@ class VLabeledWidget(QtWidgets.QWidget):
             removed_widget = self.lyt.takeAt(0).widget()  # can return None
             if removed_widget and not removed_widget == self.__content:
                 # this delete the widget
-                removed_widget.setParent(None)
+                removed_widget.deleteLater()
             # add the new content widget
             self.lyt.insertWidget(0, self.__content)
 
@@ -1331,7 +1331,7 @@ class QModMenu(QtWidgets.QWidget):
             # removeWidget doesnt raise error if wgt not added
             self.lyt_header.removeWidget(wgt)
             self.lyt_footer.removeWidget(wgt)
-            wgt.setParent(None)  # delete the widget
+            wgt.deleteLater()  # delete the widget
             _count += 1
             continue
 
@@ -1488,7 +1488,7 @@ class QModMenu(QtWidgets.QWidget):
         previous = self.get_content()
         if previous is not None:
             self.lyt_content.removeWidget(previous)
-            previous.setParent(None)  # delete it
+            previous.deleteLater()  # delete it
             logger.debug(
                 "[{}][set_content] Removed previous widget {}."
                 "".format(self.__class__.__name__, previous)
