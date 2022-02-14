@@ -305,12 +305,12 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
             SuperToolGSV.statuses.global_set_this: resources.Icons.status_g_edited,
         },
         "sorting": {
-            SuperToolGSV.statuses.global_set: 0,
-            SuperToolGSV.statuses.local_set: 1,
-            SuperToolGSV.statuses.local_set_this: 2,
-            SuperToolGSV.statuses.global_set_this: 3,
-            SuperToolGSV.statuses.local_not_set: 4,
-            SuperToolGSV.statuses.global_not_set: 5,
+            SuperToolGSV.statuses.local_set_this: 0,
+            SuperToolGSV.statuses.global_set_this: 1,
+            SuperToolGSV.statuses.local_not_set: 2,
+            SuperToolGSV.statuses.global_not_set: 3,
+            SuperToolGSV.statuses.local_set: 4,
+            SuperToolGSV.statuses.global_set: 5,
         }
     }
 

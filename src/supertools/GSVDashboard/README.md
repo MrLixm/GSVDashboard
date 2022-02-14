@@ -3,8 +3,7 @@
 Preview and edit the Graph State Variables (GSV) at the current point in your
 nodegraph (or anywhere). List local and global GSVs.
 
-![demo](./demo.gif)
-
+![demo gif](./demo.gif)
 
 ## Features
 
@@ -31,24 +30,40 @@ location registered by the `KATANA_RESOURCES` env variable.
 
 ## Use
 
+
+![preview image of gsvdb node with annotations](./description.jpg)
+
 Make sure the node is always viewed when using `logical_upstream` mode.
+
+**Some reminder about GSVs :**
+
+- Only the most upstream "Setter" node determine which GSV value is being used.
+That's why if a GSV is edited upstream , it became locked.
+
+- If a global GSV is edited locally, the local value override the global value.
+This mean you can't use the "GSV Menu Bar" (at top) anymore for this variable.
+
 
 ### Parsing settings
 
-If no setting is specified default are :
+![preview gif of gsvdb parsing settings configuration](./parse-settings.gif)
+
+
+If no setting are specified default are :
 
 ```python
 excluded_gsv_names = ["gaffersate"]
 excluded_as_groupnode_type = ["GafferThree"]
 ```
 
-You can specify scene parsing setting dirctly in the `project.user` parameters,
+You can specify scene parsing setting directly in the `project.user` parameters,
 or on a node in the scene.
 To query the parameters from a node, it must be first specified in the project
 parameters :
 
 ```
-name=gsvdb_config_node, value=name of the node with the settings
+name = gsvdb_config_node, 
+value = name of the node with the settings
 ```
 
 
@@ -58,7 +73,7 @@ Here are the supported `user` parameters names :
 - excluded_gsv_names(str): comma separated list
     - gsvdb_excluded_gsv_names: same as above
 - excluded_as_grpnode_type(str): comma separated list
-    - gsvdb_excluded_as_grpnode_type: _same as above_
+    - gsvdb_excluded_as_grpnode_type: same as above
 ```
 
 

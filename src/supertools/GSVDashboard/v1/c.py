@@ -21,4 +21,4 @@ Constants
 
 name = "GSVDashboard"
 
-version = 4
+version = 5

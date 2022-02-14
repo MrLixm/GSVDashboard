@@ -110,6 +110,8 @@ def __get_from_project():
 
     # parse project.user parameters
     uprm_proj = NodegraphAPI.GetRootNode().getParameter("user")
+    if not uprm_proj:
+        return None
 
     # if a config node is specified return its settings
     uprm_gsvdb_node = uprm_proj.getChild("gsvdb_config_node")
