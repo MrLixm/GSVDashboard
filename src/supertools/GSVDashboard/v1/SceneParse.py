@@ -142,7 +142,7 @@ class SceneParser(object):
 
         return
 
-    def __get_upstream_nodes(self, source):
+    def __get_upstream_nodes(self, source, grp_node=None):
         """
         From a given node, find all upstream nodes connected.
 
@@ -150,13 +150,15 @@ class SceneParser(object):
         processed (unless contrary specified in settings).
 
         Args:
+            grp_node (NodegraphAPI.GroupNode or None): GroupNode the source might belongs to.
             source(NodegraphAPI.Node or NodegraphAPI.Port):
                 object to start the parsing from.
 
+        Returns:
+            None:
         """
-        print("-"*50)
-        print("[__get_upstream_nodes] Started")
 
+        # we always have at least source_node != None
         if isinstance(source, NodegraphAPI.Port):
             source_port = source
             source_node = source.getNode()
@@ -169,12 +171,18 @@ class SceneParser(object):
                 "Must be Port or Node."
                 "".format(source)
             )
-        print("[__get_upstream_nodes] Source node is {}".format(source_node))
+
+        # We are goint out of a group, its potential inputs have all already
+        # been processed.
+        if grp_node == source_node:
+            if self.settings.include_groups:
+                self.__buffer.append(source_node)
+            return
 
         # When we got a groupNode we need to also parse what's inside (unless
         # the node it is excluded). To do so we swap the passed inputPort/node
         # of the group by the ones from the first children in the group.
-        # (i): A groupNode is passed as arg when going in and going out of a group
+        # (i): We reach this only when going in a group.
         if isinstance(
             source_node,
             NodegraphAPI.GroupNode
@@ -182,32 +190,22 @@ class SceneParser(object):
             source_node.getType() not in self.settings.exluded_asGroupsNodeType
         ):
 
-            # If specified we add the groupNode to the buffer, but only
-            # if we are sure there is no input else it would be added multiple
-            #  time to the buffer (going in and out) and would stop the script.
-            # If there is input it is added only when goign out.
-            if self.settings.include_groups and not source_node.getInputPorts():
-                self.__buffer.append(source_node)
-
             # if we passed a port we can just find what child node is connected
             if source_port:
                 # at first we assume we a going inside the group = return port
                 __port = source_node.getReturnPort(source_port.getName())
-
                 if not __port:
-                    print("[__get_upstream_nodes][is grp] going out")
-                    # we are going out of a group so find the group input port
-                    __port = source_node.getInputPort(source_port.getName())
-                    # the group was not added when going in so add it now
-                    if self.settings.include_groups:
-                        self.__buffer.append(source_node)
+                    raise RuntimeError(
+                        "[__get_upstream_nodes][is grp] No Return port found"
+                        "  on node <{}> with source port <{}>."
+                        " This should not happens ?!"
+                        "".format(source_node, source_port)
+                    )
 
                 source_port = __port.getConnectedPorts()[0]
                 # instead of continuing we parse directly the upstream node
                 # of the connected output node. Not returning would create an
                 # issue when 2 grp are connected and the top one doesnt have inputs.
-                print("[[__get_upstream_nodes][is grp] With sourceport, returning upstream of {}".format(source_port.getNode()))
-                return self.__get_upstream_nodes(source_port)
 
             else:
                 # if no port supplied we assume the group only have one output
@@ -222,20 +220,31 @@ class SceneParser(object):
                 source_port = source_port.getConnectedPorts()[0]
                 # make sure that if the new node is a group, it is properly
                 # parsed too.
-                print("[[__get_upstream_nodes][is grp] No sourceport, returning upstream of {}".format(source_port.getNode()))
-                return self.__get_upstream_nodes(source_port)
+
+            # the group is added first in the buffer
+            if self.settings.include_groups:
+                self.__buffer.append(source_node)
+            # now parse the node inside the group starting by the
+            # most downstream one we found
+            self.__get_upstream_nodes(source_port, grp_node=source_node)
+            if source_node.getInputPorts():
+                grp_node = source_node
+                # we continue the method, by finding connections on the group
+                pass
+            else:
+                # we have already visited it's content so stop here
+                return
 
         else:
-            pass
-
-        self.__buffer.append(source_node)
+            # as not a grp, add to the buffer (grp have already been added)
+            self.__buffer.append(source_node)
 
         # We need to find a list of port connected to this node
         connected_ports = node_get_connections(
             node=source_node,
             logical=self.settings.logical
         )
-        # Node doesn't have any inputs so return it.
+        # Node doesn't have any inputs so return.
         if not connected_ports:
             return
 
@@ -244,11 +253,11 @@ class SceneParser(object):
 
             # avoid processing multiples times the same node/port
             if connected_port.getNode() in self.__buffer:
-                print("[__get_upstream_nodes] Avoided reprocessing node {}".format(connected_port.getNode()))
                 continue
 
             self.__get_upstream_nodes(
-                source=connected_port
+                source=connected_port,
+                grp_node=grp_node
             )
 
             continue
