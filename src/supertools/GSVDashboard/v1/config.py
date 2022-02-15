@@ -84,11 +84,11 @@ def __get_settings_from_param(sparam):
     return settings if _set else None
 
 
-def __get_from_node(node_name):
+def __get_from_node(node):
     """
 
     Args:
-        node_name(str): name of the node with the user parameters for
+        node(NodegraphAPI.Node): node with the user parameters for
             settings config.
 
     Returns:
@@ -96,13 +96,7 @@ def __get_from_node(node_name):
             see __get_settings_from_param doctsring
     """
 
-    node = NodegraphAPI.GetNode(node_name)
     if not node:
-        logger.error(
-            "[config][__get_from_node] Given node name <{}> doesn't exists."
-            "Check <project.user.gsvdb_config_node> parameter is correct."
-            "".format(node_name)
-        )
         return None
 
     prm_user = node.getParameter("user")
@@ -125,7 +119,15 @@ def __get_from_project():
 
     time = NodegraphAPI.GetCurrentTime()
 
-    # parse project.user parameters
+    # let first check if the node exists
+    node = NodegraphAPI.GetNode("GSVDB_config")
+    if node:
+        logger.debug(
+            "[__get_from_project] Returned. Found node <GSVDB_config>"
+        )
+        return __get_from_node(node)
+
+    # then parse project.user parameters
     uprm_proj = NodegraphAPI.GetRootNode().getParameter("user")
     if not uprm_proj:
         return None
@@ -133,7 +135,18 @@ def __get_from_project():
     # if a config node is specified return its settings
     uprm_gsvdb_node = uprm_proj.getChild("gsvdb_config_node")
     if uprm_gsvdb_node:
-        return __get_from_node(uprm_gsvdb_node.getValue(time))
+        node_name = uprm_gsvdb_node.getValue(time)
+        node = NodegraphAPI.GetNode(node_name)
+        if not node:
+            logger.error(
+                "[config][__get_from_node] Given node name <{}> doesn't exists."
+                "Check <project.user.gsvdb_config_node> parameter is correct."
+                "".format(node_name)
+            )
+        logger.debug(
+            "[__get_from_project] Returned. Found node <{}>".format(node_name)
+        )
+        return __get_from_node(node)
 
     # parse the user parameter and generate settings from them
     settings = __get_settings_from_param(uprm_proj)
@@ -160,6 +173,9 @@ def get_parse_settings():
     if not settings:
         settings = GSV.GSVSettings()
         settings["excluded"] = ["gafferState"]
-        settings["parsing"]["excluded"]["asGroupsNodeType"] = ["GafferThree"]
+        settings["parsing"]["excluded"]["asGroupsNodeType"] = [
+            "GafferThree",
+            "Importomatic"
+        ]
 
     return settings

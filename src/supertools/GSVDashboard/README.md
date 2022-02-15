@@ -53,21 +53,20 @@ If no setting are specified default are :
 
 ```python
 excluded_gsv_names = ["gaffersate"]
-excluded_as_groupnode_type = ["GafferThree"]
+excluded_as_groupnode_type = ["GafferThree", "Importomatic"]
 ```
 
-You can specify scene parsing setting directly in the `project.user` parameters,
-or on a node in the scene.
-To query the parameters from a node, it must be first specified in the project
-parameters :
+You can specify scene parsing settings using user parameters. Root of these
+parameters can be one of (are in resolution order) :
 
-```
-name = gsvdb_config_node, 
-value = name of the node with the settings
-```
+- on a node named `GSVDB_config`
+- on any node whose name is specified in the `project.user` parameters as :
+  ```
+  project.user.gsvdb_config_node = "(str)name of the node with the settings"
+  ```
+- Directly on `project.user` parameters
 
-
-Here are the supported `user` parameters names :
+Here are the supported `user` parameters setup :
 
 ```markdown
 - excluded_gsv_names(str): comma separated list
