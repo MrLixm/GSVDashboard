@@ -154,6 +154,8 @@ class SceneParser(object):
                 object to start the parsing from.
 
         """
+        print("-"*50)
+        print("[__get_upstream_nodes] Started")
 
         if isinstance(source, NodegraphAPI.Port):
             source_port = source
@@ -167,6 +169,7 @@ class SceneParser(object):
                 "Must be Port or Node."
                 "".format(source)
             )
+        print("[__get_upstream_nodes] Source node is {}".format(source_node))
 
         # When we got a groupNode we need to also parse what's inside (unless
         # the node it is excluded). To do so we swap the passed inputPort/node
@@ -192,6 +195,7 @@ class SceneParser(object):
                 __port = source_node.getReturnPort(source_port.getName())
 
                 if not __port:
+                    print("[__get_upstream_nodes][is grp] going out")
                     # we are going out of a group so find the group input port
                     __port = source_node.getInputPort(source_port.getName())
                     # the group was not added when going in so add it now
@@ -199,8 +203,11 @@ class SceneParser(object):
                         self.__buffer.append(source_node)
 
                 source_port = __port.getConnectedPorts()[0]
-                # replace the group node with its last connected child
-                source_node = source_port.getNode()
+                # instead of continuing we parse directly the upstream node
+                # of the connected output node. Not returning would create an
+                # issue when 2 grp are connected and the top one doesnt have inputs.
+                print("[[__get_upstream_nodes][is grp] With sourceport, returning upstream of {}".format(source_port.getNode()))
+                return self.__get_upstream_nodes(source_port)
 
             else:
                 # if no port supplied we assume the group only have one output
@@ -213,7 +220,10 @@ class SceneParser(object):
                     )
                 source_port = source_node.getReturnPort(source_port.getName())
                 source_port = source_port.getConnectedPorts()[0]
-                source_node = source_port.getNode()
+                # make sure that if the new node is a group, it is properly
+                # parsed too.
+                print("[[__get_upstream_nodes][is grp] No sourceport, returning upstream of {}".format(source_port.getNode()))
+                return self.__get_upstream_nodes(source_port)
 
         else:
             pass
@@ -234,6 +244,7 @@ class SceneParser(object):
 
             # avoid processing multiples times the same node/port
             if connected_port.getNode() in self.__buffer:
+                print("[__get_upstream_nodes] Avoided reprocessing node {}".format(connected_port.getNode()))
                 continue
 
             self.__get_upstream_nodes(
@@ -325,7 +336,7 @@ def __test():
         "excluded": {
             "asGroupsNodeType": ["GafferThree"]
         },
-        "logical": False
+        "logical": True
     }
     excluded_ntype = ["Dot"]
 
@@ -342,6 +353,7 @@ def __test():
     # result.sort()  # break the visited order ! but nicer for display
 
     import pprint
+    print("_"*50)
     pprint.pprint(result)
 
     return
