@@ -7,7 +7,7 @@ Welcome on the GSVDB supertool's documentation.
 
 ## Installation
 
-Put the parent `GSVDashboard` into the `SuperTools` directory of a
+Copy the [`GSVDashboard`](../GSVDashboard) directory into the `SuperTools` directory of a
 location registered by the `KATANA_RESOURCES` env variable.
 
 ```batch
