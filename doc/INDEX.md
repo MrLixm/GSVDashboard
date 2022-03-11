@@ -1,4 +1,4 @@
-# Index
+# ![logo](img/logo.svg) Index
 
 Welcome on the GSVDB supertool's documentation.
 
