@@ -1,82 +1,36 @@
-# ![SuperTool](https://img.shields.io/badge/type-SuperTool-blueviolet) GSV Dashboard (GSVDB)
+# ![SuperTool](https://img.shields.io/badge/SuperTool-333333?labelColor=blueviolet) GSV Dashboard (GSVDB)
+
+![Python](https://img.shields.io/badge/Python-2+-4f4f4f?labelColor=FED142&logo=python)
+![katana version](https://img.shields.io/badge/Katana-4.0+-4f4f4f?labelColor=111111&logo=katana&logoColor=FCB123)
+[![License](https://img.shields.io/badge/⚖_license-Apache_2.0-4f4f4f?labelColor=blue)](LICENSE.md)
+
 
 Preview and edit the Graph State Variables (GSV) at the current point in your
 nodegraph (or anywhere). List local and global GSVs.
 
-![demo gif](./demo.gif)
+![demo gif](./doc/img/demo.gif)
 
-## Features
+# Features
 
 - Local and Global GSVs listing.
 - Scene parsing modes for GSV listing :
   - logical_upsteam
   - upstream
   - all scene
-- GSV values *used in parsed scene* listing
-- Non-already-edited GSV can be edited using the values found.
-- Listing of node using X selected GSV. (can be selected)
+- List all the GSV values *used in parsed scene*.
+- Non-already-edited GSV can be edited using the possible values found.
+- Listing of node using X selected GSV. (node can be selected)
 - Scene parsing setting can be set from a node in the scene.
 
-## Installation
+# Documentation
 
-Put the parent `GSVDashboard` into the `SuperTools` directory of a
-location registered by the `KATANA_RESOURCES` env variable.
-
-```batch
-:: D:/myShelf/SuperTools/GSVDashboard/...
-"ROOT=D:/myShelf"
-"KATANA_RESOURCES=%ROOT%"
-```
-
-## Use
+[![visit_documentation](https://img.shields.io/badge/visit_documentation-blue)](doc/INDEX.md)
 
 
-![preview image of gsvdb node with annotations](./description.jpg)
-
-Make sure the node is always viewed when using `logical_upstream` mode.
-
-**Some reminder about GSVs :**
-
-- Only the most upstream "Setter" node determine which GSV value is being used.
-That's why if a GSV is edited upstream , it became locked.
-
-- If a global GSV is edited locally, the local value override the global value.
-This mean you can't use the "GSV Menu Bar" (at top) anymore for this variable.
+> Or see the [./doc directory](doc).
 
 
-### Parsing settings
-
-![preview gif of gsvdb parsing settings configuration](./parse-settings.gif)
-
-
-If no setting are specified default are :
-
-```python
-excluded_gsv_names = ["gaffersate"]
-excluded_as_groupnode_type = ["GafferThree", "Importomatic"]
-```
-
-You can specify scene parsing settings using user parameters. Root of these
-parameters can be one of (are in resolution order) :
-
-- on a node named `GSVDB_config`
-- on any node whose name is specified in the `project.user` parameters as :
-  ```
-  project.user.gsvdb_config_node = "(str)name of the node with the settings"
-  ```
-- Directly on `project.user` parameters
-
-Here are the supported `user` parameters setup :
-
-```markdown
-- excluded_gsv_names(str): comma separated list
-    - gsvdb_excluded_gsv_names: same as above
-- excluded_as_grpnode_type(str): comma separated list
-    - gsvdb_excluded_as_grpnode_type: same as above
-```
-
-
-## Licensing 
+# Licensing 
 
 **Apache License, Version 2.0** (OpenSource)
 

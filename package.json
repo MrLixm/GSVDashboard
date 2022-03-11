@@ -1,0 +1,14 @@
+{
+  "name": "gsvdb",
+  "version": "1.0.0",
+  "author": "Liam Collod",
+  "license": "Apache 2.0",
+  "description": "Katana Supertool for previewing and editing GSV in the node graph. ",
+  "keywords": ["vfx", "katana", "supertool", "variable", "nodegraph"],
+  "dependencies": {
+    "pyqt": ">=5.6.1"
+  },
+  "engines": {
+    "python": "2.7.13"
+  }
+}
