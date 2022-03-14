@@ -60,6 +60,8 @@ class GSVSettings(dict):
 
     """
 
+    gsv_delete = "GSVDELETE"  # token to specify that a node unset the values
+
     __default = {
         "excluded": [],
         "nodes": {
@@ -77,7 +79,13 @@ class GSVSettings(dict):
                 "action": "setter",
                 "name": "variableName",
                 "values": "variableValue"
+            },
+            "VariableDelete": {
+                "action": "setter",
+                "name": "variableName",
+                "values": gsv_delete
             }
+
         },
         "parsing": {
             "mode": "logical_upstream",
@@ -203,13 +211,13 @@ class GSVNode(object):
         scene(GSVScene): parent scene this node was generated from.
 
     Attributes:
-        node: Katana node
-        type: Katana node type
-        gsv_action:
+        node(NodegraphAPI.Node): Katana node
+        type(str): Katana node type
+        gsv_action(str):
             Action performed on GSV: setter or getter.
             Used by the corresponding properties method.
-        gsv_name: Name of the GSV
-        gsv_values: Value(s) the GSV can take
+        gsv_name(str): Name of the GSV
+        gsv_values(list of str): Value(s) the GSV can take
 
     """
     action_getter = "getter"
@@ -231,9 +239,13 @@ class GSVNode(object):
             param_path=self.scene.settings["nodes"][self.type]["name"]
         )[0]
 
-        self.gsv_values = self.get_parameter(
-            param_path=self.scene.settings["nodes"][self.type]["values"]
-        )
+        values_param = self.scene.settings["nodes"][self.type]["values"]
+        if values_param == GSVSettings.gsv_delete:
+            self.gsv_values = ["DELETED"]
+        else:
+            self.gsv_values = self.get_parameter(
+                param_path=values_param
+            )
 
         logger.debug(
             "[GSVNode][__init__] Finished for node <{}> // "
@@ -429,6 +441,7 @@ class GSVObject(object):
     def locked(self):
         """
         Last value the GSV has been set to or None if it has never been set.
+        "Set" also mean "deleted" (VariableDelete)
 
         TODO last value is hard to determine so consider the result
          an approximation for now.
@@ -491,6 +504,10 @@ class GSVScene(object):
     """
     A group of node associated with an arbitrary number of gsvs.
     Disabled nodes are considered as excluded.
+
+    Attributes:
+        nodes(List[GSVNode]): list of GSVnodes
+        gsvs(List[GSVObject]): list of GSVObject build from <nodes>
 
     Args:
         settings(GSVSettings):
@@ -639,7 +656,7 @@ class GSVScene(object):
             gsvlocal.build()
 
         logger.debug(
-            "[GSVObject][_build_gsvs] Finished. {} gsv found."
+            "[GSVScene][_build_gsvs] Finished. {} gsv found."
             "".format(len(self.gsvs))
         )
 
