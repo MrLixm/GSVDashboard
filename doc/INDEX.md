@@ -29,7 +29,8 @@ Make sure the node is always viewed when using `logical_upstream` mode.
 **Some reminder about GSVs :**
 
 - Only the most upstream "Setter" node determine which GSV value is being used.
-That's why if a GSV is edited upstream , it became locked.
+That's why if a GSV is edited upstream , it became locked. A GSV is considered
+"set" when a `VariableSet` or a `VariableDelete` node is found upstream (non-disable).
 
 - If a global GSV is edited locally, the local value override the global value.
 This mean you can't use the "GSV Menu Bar" (at top) anymore for this variable.
