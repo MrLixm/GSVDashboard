@@ -10,7 +10,7 @@ set "KATANA_TAGLINE=Arnold 4.0.0.3"
 
 set "PATH=%PATH%;%U_KATANA_HOME%\bin";
 set KATANA_CATALOG_RECT_UPDATE_BUFFER_SIZE=1
-set "KATANA_USER_RESOURCE_DIRECTORY=.\prefs\shelfA\prefs"
+set "KATANA_USER_RESOURCE_DIRECTORY=%~dp0..\prefs\shelfA\prefs"
 
 :: Arnold config
 set "U_KTOA_VERSION=ktoa-4.0.0.3-kat3.6-windows"
