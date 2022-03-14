@@ -1,6 +1,6 @@
 """
-version=1
-python=>3.6.8
+version=2
+python>=3.6.8
 
 Copy to prefs
 
@@ -13,20 +13,20 @@ from pathlib import Path
 
 CONFIG = {
     "source": Path("../GSVDashboard").resolve(),
-    "target": Path(r"Z:\dccs\katana\library\shelf0005\content\SuperTools")
+    "targets": [
+        Path("./prefs/shelfA/prefs/SuperTools"),
+        Path("./prefs/shelfB/prefs/SuperTools")
+    ]
 }
 
 
-def run():
-
-    src_path = CONFIG.get("source")
-    target_path = CONFIG.get("target") / src_path.name
+def copy(src, target):
 
     # build command line arguments
     args = [
         'robocopy',
-        str(src_path),
-        str(target_path),
+        str(src),
+        str(target),
         # copy option
         "/E",
         # logging options
@@ -36,14 +36,29 @@ def run():
         "/njh",  # no job header.
         # "/njs",  # no job summary.
     ]
-    print(f"[{__name__}][run] copying src to target ...")
+    print(f"[{__name__}][copy] copying src to target ...")
     subprocess.call(args)
 
     print(
-        f"[{__name__}][run] Finished. Copied :\n"
-        f"    <{src_path}> to\n"
-        f"    <{target_path}>"
+        f"[{__name__}][copy] Finished. Copied :\n"
+        f"    <{src}> to\n"
+        f"    <{target}>"
     )
+    return
+
+
+def run():
+
+    src_path = CONFIG.get("source")
+    target_path_list = CONFIG.get("targets")
+
+    for target_path in target_path_list:
+
+        target_path = target_path / src_path.name
+        copy(src=src_path, target=target_path)
+        continue
+
+    print(f"[{__name__}][run] Finished)")
     return
 
 
