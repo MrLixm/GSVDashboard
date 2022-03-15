@@ -699,7 +699,6 @@ class QTitleBar(QtWidgets.QWidget):
 
     """
 
-    border_radius = 5
     icon_size = 16
 
     def __init__(self, parent=None, title=None):
@@ -713,61 +712,20 @@ class QTitleBar(QtWidgets.QWidget):
 
     def __uicook(self):
 
-        # =============
-        # Create Styles
-        # =============
-
-        # must be in the instance else the mainWindow is not created yet
-        mainwindow = UI4.App.MainWindow.GetMainWindow()
-        qpalette = mainwindow.palette()
-
-        bgcolor = qpalette.color(qpalette.Background)
-        color_disabled = qpalette.color(
-            qpalette.Disabled,
-            qpalette.Text
-        )
-        darkbgcolor = qpalette.color(
-            qpalette.Normal,
-            qpalette.Shadow
-        )
-
-        style_bar = """
-        .QWidget {{
-            background-color: rgba{};
-            border-radius: {}px;
-        }}
-        """.format(darkbgcolor.getRgb(), self.border_radius)
-
-        style_icon = """
-        QPushButton {{
-            background-color: transparent;
-            border: 0;
-        }}
-
-        QToolTip {{
-            background-color: rgb{0};
-            border: 1px solid rgba({1}, 0.5);
-            border-radius: 3px;
-            color: rgb({1});
-            padding: 4px;
-        }}
-        """.format(
-            bgcolor.getRgb()[:-1],
-            str(color_disabled.getRgb()[:-1])[1:][:-1]
-        )
-
         # ==============
         # Create Layouts
         # ==============
 
         self.lyt = QtWidgets.QHBoxLayout()
-        self.lytbar = QtWidgets.QHBoxLayout()
+        self.lyt_header = QtWidgets.QHBoxLayout()
+        self.lyt_aside = QtWidgets.QHBoxLayout()
 
         # ==============
         # Create Widgets
         # ==============
 
-        self.bar = QtWidgets.QWidget()
+        self.header = QtWidgets.QWidget()
+        self.aside = QtWidgets.QWidget()
         self.icon = QtWidgets.QPushButton()
         self.lbl = QtWidgets.QLabel()
 
@@ -776,41 +734,37 @@ class QTitleBar(QtWidgets.QWidget):
         # ==============
         self.lbl.setHidden(True)
         self.lbl.setMinimumHeight(30)
+        self.lbl.setAlignment(QtCore.Qt.AlignCenter)
         # Icon
         #   reset stylesheet, we only need the icon
-        self.icon.setStyleSheet(style_icon)
         self.icon.setMaximumSize(self.icon_size, self.icon_size)
         self.icon.setHidden(True)
         # Bar
-        # self.bar.setAttribute(QtCore.Qt.WA_StyledBackground, True)
-        self.bar.setStyleSheet(style_bar)
-        # Self
-        self.bar.setMinimumHeight(5)
+        self.header.setMinimumHeight(5)
         self.setMaximumHeight(50)  # random limit
-        self.bar.setSizePolicy(
-            QtWidgets.QSizePolicy(
-                QtWidgets.QSizePolicy.MinimumExpanding,
-                QtWidgets.QSizePolicy.MinimumExpanding
-            )
-        )
-        self.setSizePolicy(
-            QtWidgets.QSizePolicy(
-                QtWidgets.QSizePolicy.MinimumExpanding,
-                QtWidgets.QSizePolicy.MinimumExpanding
-            )
-        )
+        policy = QtWidgets.QSizePolicy()
+        policy.setHorizontalPolicy(QtWidgets.QSizePolicy.MinimumExpanding)
+        self.header.setSizePolicy(policy)
+        self.__set_style()
 
         # ==============
-        # Modifiy Layouts
+        # Modify Layouts
         # ==============
-        self.lytbar.setContentsMargins(5, 0, 0, 0)
-        self.bar.setLayout(self.lytbar)
-        self.lytbar.addWidget(self.icon)
-        self.lytbar.addWidget(self.lbl)
-        self.lyt.setContentsMargins(0, 0, 5, 0)
-        self.lyt.addWidget(self.bar)
-        self.lyt.setSpacing(10)
         self.setLayout(self.lyt)
+        self.lyt.addWidget(self.header)
+        self.lyt.addWidget(self.aside)
+        self.header.setLayout(self.lyt_header)
+        self.lyt_header.addWidget(self.icon)
+        self.lyt_header.addWidget(self.lbl)
+        self.aside.setLayout(self.lyt_aside)
+        # self.lyt_aside is build in __ui_bake
+
+        self.lyt.setSpacing(0)
+        self.lyt.setContentsMargins(0, 0, 0, 0)
+        self.lyt_header.setContentsMargins(5, 0, 5, 0)
+        self.lyt_header.setSpacing(10)
+        self.lyt_aside.setSpacing(10)
+        self.lyt_aside.setContentsMargins(5, 0, 5, 0)
 
         return
 
@@ -836,12 +790,55 @@ class QTitleBar(QtWidgets.QWidget):
             self.icon.setHidden(True)
 
         # clear main layout first
-        while self.lyt.count():
-            self.lyt.takeAt(0)
-        # rebuild it
-        self.lyt.addWidget(self.bar, QtCore.Qt.AlignLeft)
+        while self.lyt_aside.count():
+            self.lyt_aside.takeAt(0)
+
+        # self.lyt.addWidget(self.header, QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
         for wgt in self.__widgets:
-            self.lyt.addWidget(wgt)
+            self.lyt_aside.addWidget(wgt)
+
+        return
+
+    def __set_style(self):
+
+        style = """
+        .QWidget {{
+            background-color: rgba{0};
+            border-radius: 5px;
+        }}
+        """.format(
+            resources.Colors.app_background_dark().getRgb()
+        )
+        self.header.setStyleSheet(style)
+
+        style = """
+        .QWidget {{
+            background-color: rgba{0};
+        }}
+        """.format(
+            resources.Colors.app_disabled_text().getRgb()
+        )
+        self.aside.setStyleSheet(style)
+
+        style = """
+        QPushButton {{
+            background-color: transparent;
+            border: 0;
+        }}
+
+        QToolTip {{
+            background-color: rgb{0};
+            border: 1px solid rgba({1}, 0.5);
+            border-radius: 3px;
+            color: rgb({1});
+            padding: 4px;
+        }}
+
+        """.format(
+            resources.Colors.app_background().getRgb()[:-1],
+            str(resources.Colors.app_disabled_text().getRgb()[:-1])[1:][:-1]
+        )
+        self.icon.setStyleSheet(style)
 
         return
 
@@ -896,7 +893,6 @@ class QTitleBar(QtWidgets.QWidget):
         """
         self.icon.setToolTip(tooltip)
         return
-
 
 
 class ResetButton(QtWidgets.QPushButton):

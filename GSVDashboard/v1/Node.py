@@ -111,9 +111,51 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
     The supertool node in the nodegraph.
     """
 
-    _hints = {}
-
     parsing_modes = GSV.GSVSettings.get_expected("parsing.mode")
+
+    _hints = {
+        "{}.parsing_mode".format(c.name): {
+            "widget": "popup",
+            "label": "Scene Parsing",
+            "options": "|".join(parsing_modes),
+            "help": """
+                <p>This determines how the scene is parsed to find GSV Nodes.</p>
+                <ul>
+                <li><code>&lt;logical_upstream&gt;</code> : only process nodes that contribute to building the scene and are connected to this node.</li>
+                <li><code>&lt;all_scene&gt;</code> : all nodes in the scene, no matter if they are connected or not.</li>
+                <li><code>&lt;upstream&gt;</code> : all nodes upstream of this node no matter if they contribute to the scene or not.</li>
+                </ul>
+                <p><br /><br /></p>
+            """
+        },
+        "{}.Filter.view_local".format(c.name): {
+            "widget": "checkBox",
+            "label": "local"
+        },
+        "{}.Filter.view_global".format(c.name): {
+            "widget": "checkBox",
+            "label": "global"
+        },
+        "{}.Filter.view_locked".format(c.name): {
+            "widget": "checkBox",
+            "label": "locked"
+        },
+        "{}.Filter.match_name".format(c.name): {
+            "widget": "text",
+            "label": "name",
+            "help": """
+                Only display GSV name matching this regular expression.         
+            """  # TODO
+        },
+        "{}.Filter.match_value".format(c.name): {
+            "widget": "text",
+            "label": "values",
+            "help": """
+                Only display GSV whomse values matches this regular expression.
+            """  # TODO
+        },
+
+    }
 
     def __init__(self):
 
@@ -124,6 +166,18 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
         # Hidden version parameter to detect out-of-date internal networks
         # and upgrade it.
         self.getParameters().createChildNumber('version', c.version)
+
+        self.getParameters().createChildString(
+            "parsing_mode",
+            self.parsing_modes[0]
+        )
+        filters_grp = self.getParameters().createChildGroup("Filters")
+
+        filters_grp.createChildNumber("view_local", 1)
+        filters_grp.createChildNumber("view_global", 1)
+        filters_grp.createChildNumber("view_locked", 1)
+        filters_grp.createChildString("match_name", "")
+        filters_grp.createChildString("match_value", "")
 
         self.__build_default_network()
 
@@ -343,9 +397,9 @@ class SuperToolGSVStatus:
     global_set_this = "global set by the supertool"
     global_not_set = "global"
     global_set = "global set locally"
+    local_set_this = "local set by the supertool"
     local_not_set = "local not set"
     local_set = "local set locally"
-    local_set_this = "local set by the supertool"
 
 
 class SuperToolGSV(object):

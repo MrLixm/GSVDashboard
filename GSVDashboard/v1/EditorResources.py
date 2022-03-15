@@ -19,10 +19,12 @@
 
 """
 import os.path
+from PyQt5.QtGui import QPalette
 
 __all__ = [
     "Colors",
-    "Icons"
+    "Icons",
+    "StyleSheets"
 ]
 
 
@@ -46,6 +48,25 @@ class Colors:
     """rgb(114, 114, 114)"""
     reset = (114, 114, 114)  # used by reset button
 
+    @classmethod
+    def qpallette(cls):
+        import UI4
+        mainwindow = UI4.App.MainWindow.GetMainWindow()
+        qpalette = mainwindow.palette()
+        return qpalette
+
+    @classmethod
+    def app_background(cls):
+        return cls.qpallette().color(QPalette.Background)
+
+    @classmethod
+    def app_background_dark(cls):
+        return cls.qpallette().color(QPalette.Normal, QPalette.Shadow)
+
+    @classmethod
+    def app_disabled_text(cls):
+        return cls.qpallette().color(QPalette.Disabled, QPalette.Text)
+
 
 class Icons:
     """
@@ -64,3 +85,4 @@ class Icons:
     status_node_setter = os.path.join(__root, "status_node_setter.svg")
     info = os.path.join(__root, "info.svg")
     logo = os.path.join(__root, "gsvdb-logo.svg")
+
