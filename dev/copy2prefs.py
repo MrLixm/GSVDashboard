@@ -6,7 +6,7 @@ Copy to prefs
 
 Copy the Katana supertool to a shelf for testing.
 """
-
+import re
 import subprocess
 from pathlib import Path
 
@@ -20,7 +20,26 @@ CONFIG = {
 }
 
 
-def copy(src, target):
+def increment(source: Path):
+    """
+    Increment the version_publish variable in c.py
+    """
+
+    c_file = source / "v1" / "c.py"
+    code = c_file.read_text(encoding="utf-8")
+
+    version = re.search(r"version_publish\s*=\s*(\d+)", code)
+    assert version, f"Can't find <version_publish> in <{c_file}> !"
+    new_version = int(version.group(1)) + 1
+    new_code = f"version_publish = {new_version}"
+    new_code = code.replace(version.group(0), str(new_code))
+
+    c_file.write_text(new_code, encoding="utf-8")
+    print(f"[{__name__}][increment] Incremented c.py to {new_version}.")
+    return
+
+
+def copy(src: Path, target: Path):
 
     # build command line arguments
     args = [
@@ -51,6 +70,8 @@ def run():
 
     src_path = CONFIG.get("source")
     target_path_list = CONFIG.get("targets")
+
+    increment(src_path)
 
     for target_path in target_path_list:
 
