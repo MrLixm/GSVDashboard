@@ -19,6 +19,7 @@
 
 """
 import logging
+import os
 import time
 
 try:
@@ -172,8 +173,10 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         anything that is not in a condition.
         """
         if self.__update_tw1:
-            self.__tw_update()
-            self.__update_tw1 = False
+            try:
+                self.__tw_update()
+            finally:
+                self.__update_tw1 = False
 
         return
 
@@ -247,16 +250,24 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.cbb_mode = ParameterWidgetFactory.buildWidget(
             parent=self,
             policy=self.__pp_parsing_mode
-        )
+        )  # type: QtWidgets.QWidget
 
-        self.ttlb_header = QTitleBar(title="GSVs")
-        self.btn_update = UpdateButton()
+        self.ttlb_header = QTitleBar()
+        self.btn_update = UI4.Widgets.ToolbarButton(
+            toolTip="",
+            parent=self,
+            normalPixmap=UI4.Util.IconManager.GetPixmap(
+                os.path.join("Icons", "update_active20_hilite.png")
+            )
+
+        )
         self.tw1 = GSVTreeWidget()
 
         # ==============
         # Modify Widgets
         # ==============
         self.ttlb_header.set_icon(resources.Icons.logo)
+        self.ttlb_header.set_icon_tooltip("GSVdb v.{}-{}".format(c.version, c.version_publish))
 
         # ==============
         # Add to Layouts
@@ -275,12 +286,12 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # ==============
 
         self.tw1.itemSelectionChanged.connect(self.__tw_selection_changed)
-        self.__pp_parsing_mode.addCallback(self.__tw_update)
+        self.__pp_parsing_mode.addCallback(self.__parsing_mode_changed)
         self.btn_update.clicked.connect(self.__tw_update)
 
         return
 
-    def __tw_update(self):
+    def __tw_update(self, *args, **kwargs):
         """
         """
         s_time = time.clock()
@@ -301,7 +312,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
 
         st_gsvs = self.__node.get_gsvs(mode=parse_mode)
         for st_gsv in st_gsvs:
-            TreeWidgetItemGSV(st_gsv=st_gsv, parent=self.tw1)
+            TreeWidgetItemGSV(parent=self.tw1, st_gsv=st_gsv)
 
         self.__tw_select_last_selected()
         self.__tw_selection_changed()
@@ -390,4 +401,12 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         """
         self.__node.unedit_gsv(stgsv.name)
         self.__tw_update()
+        return
+
+    def __parsing_mode_changed(self, *args, **kwargs):
+        """
+        Called when the scene parsing mode was changed.
+        """
+        self.__tw_update()
+        print(args, kwargs)
         return

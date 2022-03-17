@@ -280,12 +280,18 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
     Column 1 : GSV name
     COlumn 2 : GSV values
 
+    Data per item using UserRole is used to sort the item's column in the
+    parent treewidget.
+
     Args:
         st_gsv(SuperToolGSV):
         parent(QtWidgets.QTreeWidget):
 
     Attributes:
+        parent(QtWidgets.QTreeWidget):
+        status(str): gsv status
         gsv(SuperToolGSV): the GSV as a python object relative to the supertool
+        cbb_values(QtWidgets.QComboBox):
     """
 
     _status_config = {
@@ -336,17 +342,20 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
         }
     }
 
-    def __init__(self, st_gsv, parent):
+    def __init__(self, parent, st_gsv):
 
         super(TreeWidgetItemGSV, self).__init__(parent)
+        self.parent = parent
         self.gsv = st_gsv
         self.status = self.gsv.status
+        self.cbb_values = None
 
         self.__cook()
 
         return
 
     def __cook(self):
+
 
         # column: icon
         column = 0
@@ -366,12 +375,25 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
         # column: gsv values
         column = 2
         text = self.gsv.get_all_values()
-        self.setText(column, list2str(text))
-        self.setTextAlignment(column, QtCore.Qt.AlignLeft)
-        self.setToolTip(column, "Values the GSV can take.")
-        self.setTextAlignment(column, QtCore.Qt.AlignVCenter)
         data = len(text)
         self.setData(column, QtCore.Qt.UserRole, data)
+        self.setToolTip(column, "Values the GSV can take.")
+
+        if self.gsv.is_editable or self.gsv.is_edited:
+
+            self.cbb_values = QtWidgets.QComboBox()
+            self.cbb_values.addItems(text)
+            self.cbb_values.setCurrentText(
+                self.gsv.get_current_value()
+            )
+
+            self.parent.setItemWidget(self, column, self.cbb_values)
+
+        else:
+
+            self.setText(column, list2str(text))
+            # self.setTextAlignment(column, QtCore.Qt.AlignLeft)
+            self.setTextAlignment(column, QtCore.Qt.AlignVCenter)
 
         # all columns should be colored
         self._update_columns_color([0, 1, 2])
@@ -582,21 +604,67 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
 
     def __cook(self):
 
+        color1 = resources.Colors.app_background_light().getRgb()
+        """rgba(56, 56, 56, 1)"""
         style = """
-        QTreeView {
+        
+        QTreeView {{
+            background-color: transparent;
             border-radius: 3px;
             border: 0;
             padding: 3px;
-        }   
-        QHeaderView::section {
+        }}
+         
+        QTreeView::item {{
+            background: rgb{0};
+            margin: 2px 0 2px;
+        }}
+        
+        QTreeView::item:first {{
+            border-left: 3px solid transparent;
+            border-top-left-radius: 3px;
+            border-bottom-left-radius: 3px;
+        }}
+        
+        QTreeView::item:last {{
+            border-top-right-radius: 3px;
+            border-bottom-right-radius: 3px;
+        }}
+
+        QTreeView::item:hover:first {{
+            border-left: 3px solid rgb(71,72,101);
+        }}
+
+        QTreeView::item:selected {{
+            background: rgb(57,57,71);
+        }}        
+        QTreeView::item:selected:first {{
+            border-left: 3px solid rgb(71,72,101);
+        }}
+
+        QHeaderView::section {{
+            margin:3px;
+            margin-bottom:8px;
+            padding-bottom:3px;
             border: 0;
-        }
-        """
+            /*border-bottom: 1px solid #444444;*/
+        }}
+        
+        /* for the values column */
+        QComboBox {{
+            background: transparent;
+            border-radius: 3px;
+            margin:3px;
+            padding-left: 3px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }}
+
+        """.format(color1)
 
         self.setStyleSheet(style)
         self.setColumnCount(TreeWidgetItemGSV.column_number())
         self.setMinimumHeight(150)
-        self.setAlternatingRowColors(True)
+        self.setAlternatingRowColors(False)
         self.setSortingEnabled(True)
         self.setUniformRowHeights(True)
         self.setRootIsDecorated(False)
@@ -699,14 +767,15 @@ class QTitleBar(QtWidgets.QWidget):
 
     """
 
-    icon_size = 16
-
     def __init__(self, parent=None, title=None):
 
         super(QTitleBar, self).__init__(parent)
         self.__title = title
         self.__icon = None
         self.__widgets = list()
+
+        self.icon_size = 16
+
         self.__uicook()
         return
 
@@ -734,7 +803,7 @@ class QTitleBar(QtWidgets.QWidget):
         # ==============
         self.lbl.setHidden(True)
         self.lbl.setMinimumHeight(30)
-        self.lbl.setAlignment(QtCore.Qt.AlignCenter)
+        # self.lbl.setAlignment(QtCore.Qt.AlignCenter)
         # Icon
         #   reset stylesheet, we only need the icon
         self.icon.setMaximumSize(self.icon_size, self.icon_size)
@@ -743,6 +812,7 @@ class QTitleBar(QtWidgets.QWidget):
         self.header.setMinimumHeight(5)
         self.setMaximumHeight(50)  # random limit
         policy = QtWidgets.QSizePolicy()
+        policy.setVerticalPolicy(QtWidgets.QSizePolicy.MinimumExpanding)
         policy.setHorizontalPolicy(QtWidgets.QSizePolicy.MinimumExpanding)
         self.header.setSizePolicy(policy)
         self.__set_style()
@@ -756,6 +826,7 @@ class QTitleBar(QtWidgets.QWidget):
         self.header.setLayout(self.lyt_header)
         self.lyt_header.addWidget(self.icon)
         self.lyt_header.addWidget(self.lbl)
+        self.lyt_header.addStretch(1)
         self.aside.setLayout(self.lyt_aside)
         # self.lyt_aside is build in __ui_bake
 
@@ -778,11 +849,6 @@ class QTitleBar(QtWidgets.QWidget):
 
         if self.__icon:
             qpixmap = QtGui.QPixmap(str(self.__icon))
-            qpixmap = qpixmap.scaled(
-                self.icon_size,
-                self.icon_size,
-                transformMode=QtCore.Qt.SmoothTransformation
-            )
             qicon = QtGui.QIcon(qpixmap)
             self.icon.setIcon(qicon)
             self.icon.setHidden(False)
@@ -809,7 +875,7 @@ class QTitleBar(QtWidgets.QWidget):
         """.format(
             resources.Colors.app_background_dark().getRgb()
         )
-        self.header.setStyleSheet(style)
+        # self.header.setStyleSheet(style)
 
         style = """
         .QWidget {{
@@ -818,7 +884,7 @@ class QTitleBar(QtWidgets.QWidget):
         """.format(
             resources.Colors.app_disabled_text().getRgb()
         )
-        self.aside.setStyleSheet(style)
+        # self.aside.setStyleSheet(style)
 
         style = """
         QPushButton {{
@@ -875,7 +941,7 @@ class QTitleBar(QtWidgets.QWidget):
         self.__uibake()
         return
 
-    def set_icon(self, icon_path):
+    def set_icon(self, icon_path, size=None):
         """
         Update the UI after.
 
@@ -883,6 +949,7 @@ class QTitleBar(QtWidgets.QWidget):
             icon_path(str or Path): full path to the icon location
         """
         self.__icon = icon_path
+        self.icon_size = size or self.icon_size
         self.__uibake()
         return
 

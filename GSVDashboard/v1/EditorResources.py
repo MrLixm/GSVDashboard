@@ -57,14 +57,22 @@ class Colors:
 
     @classmethod
     def app_background(cls):
+        """rgba(46, 46, 46, 1)"""
         return cls.qpallette().color(QPalette.Background)
 
     @classmethod
     def app_background_dark(cls):
+        """rgba(38, 38, 38, 1)"""
         return cls.qpallette().color(QPalette.Normal, QPalette.Shadow)
 
     @classmethod
+    def app_background_light(cls):
+        """rgba(56, 56, 56, 1)"""
+        return cls.qpallette().color(QPalette.Normal, QPalette.Base)
+
+    @classmethod
     def app_disabled_text(cls):
+        """rgba(117, 117, 117, 1)"""
         return cls.qpallette().color(QPalette.Disabled, QPalette.Text)
 
 
