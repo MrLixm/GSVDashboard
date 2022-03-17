@@ -43,7 +43,7 @@ class Colors:
     viewed = (104, 91, 186)
     """rgb(140, 140, 140)"""
     text_disabled = (140, 140, 140)
-    """rgb(57, 217, 121)"""
+    """rgb(60, 168, 94)"""
     edit = (57, 217, 121)  # used by edit button
     """rgb(114, 114, 114)"""
     reset = (114, 114, 114)  # used by reset button

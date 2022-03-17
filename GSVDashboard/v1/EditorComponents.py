@@ -46,14 +46,12 @@ from .GSV import GSVNode
 
 
 __all__ = [
-    'QModMenu',
     "TreeWidgetItemGSV",
     "GSVPropertiesWidget",
     "QTitleBar",
     "ResetButton",
     "EditButton",
     "GSVTreeWidget",
-    "UpdateButton",
     "VLabeledWidget",
     "HLabeledWidget"
 ]
@@ -285,13 +283,14 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
 
     Args:
         st_gsv(SuperToolGSV):
-        parent(QtWidgets.QTreeWidget):
+        parent(GSVTreeWidget):
 
     Attributes:
-        parent(QtWidgets.QTreeWidget):
+        parent(GSVTreeWidget):
         status(str): gsv status
         gsv(SuperToolGSV): the GSV as a python object relative to the supertool
         cbb_values(QtWidgets.QComboBox):
+        btn(QtWidgets.QPushButton):
     """
 
     _status_config = {
@@ -332,12 +331,17 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
         },
         1: {
             "label": "Name",
-            "width": 200,
+            "width": 185,
             "height": None,
         },
         2: {
             "label": "Values",
-            "width": None,  # fill all the space left
+            "width": 200,
+            "height": None,
+        },
+        3: {
+            "label": "Action",
+            "width": None,
             "height": None,
         }
     }
@@ -348,14 +352,14 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
         self.parent = parent
         self.gsv = st_gsv
         self.status = self.gsv.status
-        self.cbb_values = None
+        self.cbb_values = None  # type: QtWidgets.QComboBox
+        self.btn = None  # type: QtWidgets.QPushButton
 
         self.__cook()
 
         return
 
     def __cook(self):
-
 
         # column: icon
         column = 0
@@ -379,13 +383,14 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
         self.setData(column, QtCore.Qt.UserRole, data)
         self.setToolTip(column, "Values the GSV can take.")
 
-        if self.gsv.is_editable or self.gsv.is_edited:
+        if self.gsv.is_edited:
 
             self.cbb_values = QtWidgets.QComboBox()
             self.cbb_values.addItems(text)
             self.cbb_values.setCurrentText(
-                self.gsv.get_current_value()
+                str(self.gsv.get_current_value())
             )
+            self.cbb_values.activated.connect(self.__emit_edited)
 
             self.parent.setItemWidget(self, column, self.cbb_values)
 
@@ -394,6 +399,27 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
             self.setText(column, list2str(text))
             # self.setTextAlignment(column, QtCore.Qt.AlignLeft)
             self.setTextAlignment(column, QtCore.Qt.AlignVCenter)
+
+        # column: action buttons
+        column = 3
+
+        # is_edited must be first
+        if self.gsv.is_edited:
+
+            self.btn = ResetButton("Reset")
+            self.btn.clicked.connect(self.__emit_reset)
+
+        elif self.gsv.is_editable:
+
+            self.btn = EditButton("Edit")
+            self.btn.clicked.connect(self.__emit_set_edited)
+
+        else:
+            # column is left empty
+            pass
+
+        if self.btn:
+            self.parent.setItemWidget(self, column, self.btn)
 
         # all columns should be colored
         self._update_columns_color([0, 1, 2])
@@ -406,6 +432,46 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
             "".format(self.__class__.__name__)
         )
 
+        return
+
+    def __emit_set_edited(self):
+        """
+        For the Edit QPushButton
+        """
+        self.parent.edited_sgn.emit(self.gsv, "")
+        logger.debug(
+            "[TreeWidgetItemGSV:name={}][__emit_set_edited] Finished."
+            "".format(self.gsv.name)
+        )
+        return
+
+    def __emit_edited(self):
+
+        if not self.cbb_values:
+            raise RuntimeError(
+                "[TreeWidgetItemGSV:name={}][__emit_edited] "
+                "The value ComboBox widget doesn't exists ! This should"
+                "never happens ??"
+                "".format(self.gsv.name)
+            )
+
+        value = self.cbb_values.currentText()
+        self.parent.emit_edited(self.gsv, value)
+        logger.debug(
+            "[TreeWidgetItemGSV:name={}][__emit_edited] Finished."
+            "".format(self.gsv.name)
+        )
+        return
+
+    def __emit_reset(self):
+        """
+        For the Reset QPushButton
+        """
+        self.parent.emit_reset(self.gsv)
+        logger.debug(
+            "[TreeWidgetItemGSV:name={}][__emit_reset] Finished."
+            "".format(self.gsv.name)
+        )
         return
 
 
@@ -597,6 +663,10 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
         last_selected(str or None): name of the last selected GSV
     """
 
+    # object is a SuperTool GSV, str is the new value set
+    edited_sgn = QtCore.pyqtSignal(object, str)
+    reset_sgn = QtCore.pyqtSignal(object)
+
     def __init__(self):
         super(GSVTreeWidget, self).__init__()
         self.__cook()
@@ -605,7 +675,7 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
     def __cook(self):
 
         color1 = resources.Colors.app_background_light().getRgb()
-        """rgba(56, 56, 56, 1)"""
+        color2 = "rgb(71,72,101)"
         style = """
         
         QTreeView {{
@@ -632,14 +702,19 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
         }}
 
         QTreeView::item:hover:first {{
-            border-left: 3px solid rgb(71,72,101);
+            border-left: 3px solid {1};
         }}
 
         QTreeView::item:selected {{
             background: rgb(57,57,71);
+            border-top: 1px solid {1};
+            border-bottom: 1px solid {1};
         }}        
         QTreeView::item:selected:first {{
-            border-left: 3px solid rgb(71,72,101);
+            border-left: 3px solid {1};
+        }}
+        QTreeView::item:selected:last {{
+            border-right: 1px solid {1};
         }}
 
         QHeaderView::section {{
@@ -658,8 +733,12 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
             padding-left: 3px;
             border: 1px solid rgba(255,255,255,0.1);
         }}
+        
+        QPushButton {{
+            margin: 3px;
+        }}
 
-        """.format(color1)
+        """.format(color1, color2)
 
         self.setStyleSheet(style)
         self.setColumnCount(TreeWidgetItemGSV.column_number())
@@ -675,13 +754,21 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
         self.setSelectionBehavior(self.SelectRows)
         # remove dotted border on columns
         self.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.setColumnWidth(0, TreeWidgetItemGSV.column_size(0)[0])
-        self.setColumnWidth(1, TreeWidgetItemGSV.column_size(1)[0])
-        self.setHeaderLabels(TreeWidgetItemGSV.column_labels())
         header = self.header()
+        self.setHeaderLabels(TreeWidgetItemGSV.column_labels())
+
+        for i in range(TreeWidgetItemGSV.column_number()):
+
+            size = TreeWidgetItemGSV.column_size(i)[0]
+            if size:
+                self.setColumnWidth(i, size)
+
+        header.setStretchLastSection(False)
         # The user can resize the section
         header.setSectionResizeMode(header.Interactive)
         header.setSectionResizeMode(0, header.ResizeToContents)
+        header.setSectionResizeMode(2, header.Stretch)
+        header.setSortIndicator(0, QtCore.Qt.DescendingOrder)
 
         self.itemSelectionChanged.connect(self.__on_selection_changed)
 
@@ -707,7 +794,7 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
         selection = self.selectedItems()  # type: List[TreeWidgetItemGSV]
         if not selection:
             logger.debug(
-                "[{}][__tw_selected_get_gsv_data] Called but"
+                "[{}][get_selected_gsv_data] Called but"
                 "self.selectedItems() return None ?"
                 "".format(self.__class__.__name__)
             )
@@ -745,6 +832,14 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
             out.append(qitem_root)
 
         return out
+
+    def emit_edited(self, stgsv, newvalue):
+        self.edited_sgn.emit(stgsv, newvalue)
+        return
+
+    def emit_reset(self, stgsv):
+        self.reset_sgn.emit(stgsv)
+        return
 
 
 """ ---------------------------------------------------------------------------
@@ -970,14 +1065,21 @@ class ResetButton(QtWidgets.QPushButton):
         super(ResetButton, self).__init__(*args, **kwargs)
 
         style = """
-        color: rgb(250, 250, 250);
-        border-radius: 3px;
-        border: 1px solid rgba({0}, 0.5);
-        background-color: rgba({0}, 0.2);
-        padding: 5px;
-        padding-left: 10px;
-        padding-right: 10px;
+        QPushButton {{
+            color: rgb(250, 250, 250);
+            border-radius: 3px;
+            border: 1px solid rgba({0}, 0.5);
+            background-color: rgba({0}, 0.2);
+            padding: 5px;
+            padding-left: 10px;
+            padding-right: 10px;
+        }}
+        QPushButton:hover {{
+            border: 1px solid rgba({0}, 0.2);
+            background-color: rgba({0}, 0.05);
+        }}
         """.format(str(self.bgcolor)[1:][:-1])
+
         self.setStyleSheet(style)
         self.setSizePolicy(
             QtWidgets.QSizePolicy(
@@ -992,38 +1094,6 @@ class ResetButton(QtWidgets.QPushButton):
 class EditButton(ResetButton):
 
     bgcolor = resources.Colors.edit
-
-
-class UpdateButton(QtWidgets.QPushButton):
-
-    def __init__(self, *args, **kwargs):
-        super(UpdateButton, self).__init__(*args, **kwargs)
-
-        style = """
-        QPushButton {
-            border: unset;
-            background-color: transparent;
-            padding: 2px;
-        }
-        QPushButton:hover {
-            icon-size: 150%;
-        }
-        """
-        self.setStyleSheet(style)
-        self.setSizePolicy(
-            QtWidgets.QSizePolicy(
-                QtWidgets.QSizePolicy.Maximum,
-                QtWidgets.QSizePolicy.Maximum
-            )
-        )
-        self.setIcon(
-            QtGui.QIcon(
-                UI4.Util.IconManager.GetPixmap(
-                    os.path.join("Icons", "update_active20_hilite.png")
-                )
-            )
-        )
-        return
 
 
 """
@@ -1215,462 +1285,8 @@ class HLabeledWidget(VLabeledWidget):
     direction = QtWidgets.QBoxLayout.RightToLeft
 
 
-# noinspection PyArgumentList
-class QModMenu(QtWidgets.QWidget):
-    """
-    Container widget with a header and a footer widget. In between you have a
-    content widget.
-    The QModMenu can have multiple status that can be added on the fly.
-    Each status store a different widget setup for header/footer.
-
-    ::
-
-        --[header widget]-------------------------------
-        |
-        |   content
-        |
-        --[footer widget]-------------------------------
-
-    Header and footer should be horizontally shaped.
-    The content and footer widget are optional.
-
-    Attributes:
-        status(any):
-            Currently active status.
-            Can also be queried via get_status_current()
-        __content(QtWidgets.QWidget): content widget
-        __statuses(dict of dict): dict of possible statuses with their
-            corresponding widgets.
-
-    """
-
-    __default_status = {
-        "header": None,  # type: List[QtWidgets.QWidget]
-        "footer": None,  # type: List[QtWidgets.QWidget]
-    }
-
-    def __init__(self, parent=None):
-
-        super(QModMenu, self).__init__(parent)
-
-        self.__content = None  # type: QtWidgets.QWidget
-        self.__statuses = dict()
-        self.status = None
-
-        self.__uicook()
-        self.add_status("default")
-
-        return
-
-    def dict(self):
-        return {
-            "status": self.status,
-            "content": self.__content,
-            "statuses": self.__statuses
-        }
-
-    """---
-        UI
-    """
-
-    def __uicook(self):
-        """
-        Build the ui for the first time
-        """
-
-        self.lyt = QtWidgets.QVBoxLayout()
-        self.lyt_header = QtWidgets.QStackedLayout()
-        self.lyt_content = QtWidgets.QStackedLayout()
-        self.wgt_content_nul = QtWidgets.QWidget()
-        self.lyt_footer = QtWidgets.QStackedLayout()
-
-        self.lyt.setSpacing(0)
-        self.wgt_content_nul.setHidden(True)
-
-        self.lyt_content.addWidget(self.wgt_content_nul)
-        self.lyt.addLayout(self.lyt_header)
-        self.lyt.addLayout(self.lyt_content)
-        self.lyt.addLayout(self.lyt_footer)
-
-        self.setLayout(self.lyt)
-
-        logger.debug(
-            "[QModMenu][__uicook] Finished for status=<{}>.".format(self.status)
-        )
-        return
-
-    def __ui_bake(self):
-        """
-        Update the UI widgets content for the current active status.
-        """
-
-        # header
-        wgt = self.get_header_widget()
-        if wgt:
-            self.lyt_header.setCurrentWidget(wgt)
-
-        # content
-        wgt = self.get_content()
-        if wgt:
-            self.lyt_content.setCurrentWidget(wgt)
-        else:
-            self.lyt_content.setCurrentWidget(self.wgt_content_nul)
-
-        # footer
-        wgt = self.get_footer_widget()
-        if wgt:
-            self.lyt_footer.setCurrentWidget(wgt)
-
-        logger.debug(
-            "[{}][__ui_bake] Finished for current status <{}>."
-            "".format(self.__class__.__name__, self.status)
-        )
-        return
-
-    def update(self):
-        logger.debug(
-            "[{}][update] Called from {}."
-            "".format(self.__class__.__name__, inspect.stack()[1][3])
-        )  # TODO removve this (not py3)
-        self.__ui_bake()
-
-        return
-
-    def set_content_hidden(self, hidden):
-        """
-        Args:
-            hidden(bool):
-                True to hide the content widget. False to make it visible.
-        """
-        self.get_content().setHidden(hidden)
-        return
-
-    """-----------
-        Status API
-    """
-
-    def __check_status_exists_deco(func):
-        """
-        Hacky way to have a decorator in the class. Could be defined outside
-        this class (without the __ prefix) but just cleaner to have it inside.
-        """
-
-        def wrapper(*args, **kwargs):
-
-            self = args[0]
-            status = kwargs.get("status_id") or args[1]
-            self.is_status_existing(status, raise_error=True)
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    @__check_status_exists_deco
-    def __reset_status(self, status_id):
-        self.__del_widgets_status(status_id)
-        self.__statuses[status_id] = self.__default_status
-        logger.debug(
-            "[{}][__reset_status] Finished for status <{}>."
-            "".format(self.__class__.__name__, status_id)
-        )
-        return
-
-    @__check_status_exists_deco
-    def __del_widgets_status(self, status_id):
-        """
-        Delete definitively the widgets holded in the given status.
-
-        Args:
-            status_id(object):
-        """
-
-        content = self.__statuses[status_id]  # type: dict
-        _count = 0
-
-        for _, wgt in content.items():
-
-            if wgt is None:
-                continue
-
-            # removeWidget doesnt raise error if wgt not added
-            self.lyt_header.removeWidget(wgt)
-            self.lyt_footer.removeWidget(wgt)
-            wgt.deleteLater()  # delete the widget
-            _count += 1
-            continue
-
-        logger.debug(
-            "[{}][__del_widgets_status] Deleted {} widgets for status <{}>"
-            "".format(self.__class__.__name__, _count, status_id)
-        )
-        return
-
-    @__check_status_exists_deco
-    def __del_status(self, status_id):
-        """
-        Remove the given status from the list.
-        !! Also delete the widgets it was holding
-
-        Args:
-            status_id(object):
-        """
-        self.__del_widgets_status(status_id)
-        del self.__statuses[status_id]
-        logger.debug(
-            "[{}][__del_status] Finished for status <{}>."
-            "".format(self.__class__.__name__, status_id)
-        )
-
-        return
-
-    @__check_status_exists_deco
-    def set_status_current(self, status_id):
-        """
-        Set the new currently used status.
-        Update the UI too.
-
-        Args:
-            status_id(any): o
-                object used to indentify the status
-
-        Devnote: Can only take on argument !!
-        """
-        self.status = status_id
-        self.update()
-        logger.debug(
-            "[{}][set_status_current] Finished new status is <{}>."
-            "".format(self.__class__.__name__, status_id)
-        )
-        return
-
-    def add_status(self, status_id, replace_default=False, set_to_current=True):
-        """
-
-        Args:
-            status_id(any):
-                object used to identify a status
-            replace_default(bool):
-                If true , it just delete the default key if it exists
-            set_to_current(bool):
-                If true, also change the current status to the newly added one.
-
-        """
-        if replace_default and "default" in self.get_status_list():
-            self.__del_status("default")
-
-        self.__statuses[status_id] = self.__default_status.copy()
-
-        if set_to_current:
-            self.set_status_current(status_id=status_id)
-
-        return
-
-    def get_status_current(self):
-        return self.status
-
-    def get_status_list(self):
-        return list(self.__statuses.keys())
-
-    def is_status_existing(self, status_id, raise_error=False):
-        """
-        Args:
-            status_id(any):
-            raise_error(bool):
-                If True raise an error if the status is not registered .
-
-        Returns:
-            bool: True if the status is registered else False.
-        """
-        result = status_id in self.get_status_list()
-        if not result and raise_error:
-            raise ValueError(
-                "[is_status_existing] status_id argument <{}> passed is "
-                "not registered in the available statuses.".format(status_id)
-            )
-        return result
-
-    def remove_status(self, status_id=None, all_status=False):
-        """
-        Remove the given status. If it was the current status the new one
-        is the last status in the status list.
-        !! Also delete the widgets it was containing
-
-        Args:
-            status_id(any or None): If None passed, use the current status.
-            all_status(bool): True to reset all statuses.
-        """
-
-        # if no status_id passed use the current one
-        if not status_id:
-            status_id = self.get_status_current()
-        status_id = [status_id]
-
-        if all_status:
-            status_id = self.get_status_list()
-
-        for __status in status_id:
-            self.__del_status(__status)
-
-        # if we have removed all the statuses, add back the default one.
-        if not self.get_status_list():
-            self.add_status("default")
-        else:
-            self.set_status_current(self.get_status_list()[-1])
-
-        return
-
-    def reset_status(self, status_id=None, all_status=False):
-        """
-        Remove the widgets sets for the given status. Make it empty.
-
-        Args:
-            status_id(any or None): If None passed, use the current status.
-            all_status(bool): True to reset all statuses.
-        """
-
-        # if no status_id passed use the current one
-        if not status_id:
-            status_id = self.get_status_current()
-        status_id = [status_id]
-
-        if all_status:
-            status_id = self.get_status_list()
-
-        for __status in status_id:
-            self.__reset_status(__status)
-
-        return
-
-    def set_content(self, content_widget):
-        """
-        Content ils always the same, no matter the current status.
-
-        Args:
-            content_widget(QtWidgets.QWidget):
-        """
-        # remove and delete the previous content widget
-        previous = self.get_content()
-        if previous is not None:
-            self.lyt_content.removeWidget(previous)
-            previous.deleteLater()  # delete it
-            logger.debug(
-                "[{}][set_content] Removed previous widget {}."
-                "".format(self.__class__.__name__, previous)
-            )
-
-        self.__content = content_widget
-        self.lyt_content.addWidget(content_widget)
-        self.update()
-        return
-
-    def get_content(self):
-        """
-        Returns:
-            QtWidgets.QWidget:
-                Widget used as content.
-        """
-        return self.__content
-
-    def set_header_widget(self, widget, status_id=None):
-        """
-        Args:
-            widget(QtWidgets.QWidget):
-            status_id(any or None): If None, use the current status.
-        """
-
-        # if no status_id passed use the current one
-        if not status_id:
-            status_id = self.get_status_current()
-
-        self.is_status_existing(status_id, raise_error=True)
-        self.__statuses[status_id]["header"] = widget
-        self.lyt_header.addWidget(widget)
-        self.update()
-
-        return
-
-    def get_header_widget(self, status_id=None):
-        """
-        Args:
-            status_id(any or None): If None, use the current status.
-        """
-
-        # if no status_id passed use the current one
-        if not status_id:
-            status_id = self.get_status_current()
-
-        self.is_status_existing(status_id, raise_error=True)
-        return self.__statuses[status_id]["header"]
-
-    def set_footer_widget(self, widget, status_id=None):
-        """
-        Args:
-            widget(QtWidgets.QWidget):
-            status_id(any or None): If None, use the current status.
-        """
-
-        # if no status_id passed use the current one
-        if not status_id:
-            status_id = self.get_status_current()
-
-        self.is_status_existing(status_id, raise_error=True)
-
-        self.__statuses[status_id]["footer"] = widget
-        self.lyt_footer.addWidget(widget)
-        self.update()
-
-        return
-
-    def get_footer_widget(self, status_id=None):
-        """
-        Args:
-            status_id(any or None): If None, use the current status.
-        """
-
-        # if no status_id passed use the current one
-        if not status_id:
-            status_id = self.get_status_current()
-
-        self.is_status_existing(status_id, raise_error=True)
-        return self.__statuses[status_id]["footer"]
-
-
 class GSVPropertiesWidget(QtWidgets.QFrame):
     """
-    Widget used to display the properties of a single GSV.
-    It's name, the value sit can take, and it's associated Nodes.
-
-    ::
-
-        [gsv name ] [gsv value +]
-
-        [ node1                 ]
-        [ node2                 ]
-        [ node3                 ]
-
-    Different statuses are:
-
-    - locked : the GSV can't be modify in any way. Read only.
-
-    - editable : the UI is visually locked but can be switched to edited.
-
-    - edited : the user can change the GSV Values
-
-
-    Attributes:
-        value_changed_sgn(SuperToolGSV, Optional[str]):
-            qt signal emitted when the USER change the value of the ComboBox
-        status_changed_sgn:
-            qt signal emitted when the widget change status, value emitted is
-            one of the 3 <status_XXX> attributes. First value is the new status
-            , second is the previous status ebfore it was changed.
-        unedited_sgn:
-            qt signal emitted when the widget stop being edited (was reset).
-            i.e you go from edited to editable
-
-    Notes:
-        widget being instance of VLabeledWidget need to be accessed through
-        VLabeledWidget().content.setStyleSheet(...)
-
     """
 
     value_changed_sgn = QtCore.pyqtSignal(object, object)

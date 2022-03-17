@@ -43,15 +43,9 @@ from UI4.FormMaster.KatanaFactory import ParameterWidgetFactory as ParameterWidg
 from . import c
 from . import EditorResources as resources
 from .EditorComponents import (
-    QModMenu,
     TreeWidgetItemGSV,
-    GSVPropertiesWidget,
     QTitleBar,
-    ResetButton,
-    EditButton,
     GSVTreeWidget,
-    UpdateButton,
-    HLabeledWidget
 
 )
 # import for type hints only
@@ -286,6 +280,8 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # ==============
 
         self.tw1.itemSelectionChanged.connect(self.__tw_selection_changed)
+        self.tw1.edited_sgn.connect(self.__gsv_set_value)
+        self.tw1.reset_sgn.connect(self.__gsv_remove_edit)
         self.__pp_parsing_mode.addCallback(self.__parsing_mode_changed)
         self.btn_update.clicked.connect(self.__tw_update)
 
@@ -376,7 +372,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
 
         Args:
             stgsv(SuperToolGSV):
-            new_value(str):
+            new_value(str): can be an empty string ""
         """
 
         if new_value is None:
@@ -389,6 +385,8 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # weirdly on Katana 4.0 signal seems to passe something that was
         # not a string. Issue was not there on Katana 4.5
         new_value = str(new_value)
+        if new_value == "":
+            new_value = str(stgsv.get_all_values()[0])
 
         self.__node.edit_gsv(name=stgsv.name, value=new_value)
         self.__tw_update()
