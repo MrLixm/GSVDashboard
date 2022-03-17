@@ -39,6 +39,7 @@ import PackageSuperToolAPI
 from . import c
 from . import config
 from . import GSV
+from . import EditorResources as resources
 
 __all__ = ['GSVDashboardNode', "SuperToolGSV"]
 
@@ -128,30 +129,37 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
                 <p><br /><br /></p>
             """
         },
-        "{}.Filter.view_local".format(c.name): {
-            "widget": "checkBox",
-            "label": "local"
+        "{}.Filters.view_type".format(c.name): {
+            "widget": "capsule",
+            "label": "Only view :",
+            "options": [
+                'Global',
+                'Local',
+                'Locked'
+            ],
+            'colors': [
+                resources.Colors.yellow_global_disabled,
+                resources.Colors.capsule_local,
+                resources.Colors.capsule_locked
+            ],
+            'delimiter': ', ',
+            'equalPartitionWidths': True,
+            'exclusive': False,
+            'horizontalMargin': 5,
+            'verticalMargin': 2,
+            'innerMargin': 10,
+            'cornerRoundness': 20,
         },
-        "{}.Filter.view_global".format(c.name): {
-            "widget": "checkBox",
-            "label": "global"
-        },
-        "{}.Filter.view_locked".format(c.name): {
-            "widget": "checkBox",
-            "label": "locked"
-        },
-        "{}.Filter.match_name".format(c.name): {
-            "widget": "text",
+        "{}.Filters.match_names".format(c.name): {
             "label": "name",
             "help": """
                 Only display GSV name matching this regular expression.         
             """  # TODO
         },
-        "{}.Filter.match_value".format(c.name): {
-            "widget": "text",
+        "{}.Filters.match_values".format(c.name): {
             "label": "values",
             "help": """
-                Only display GSV whomse values matches this regular expression.
+                Only display GSV who got at least one value matching this regular expression.
             """  # TODO
         },
 
@@ -173,11 +181,9 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
         )
         filters_grp = self.getParameters().createChildGroup("Filters")
 
-        filters_grp.createChildNumber("view_local", 1)
-        filters_grp.createChildNumber("view_global", 1)
-        filters_grp.createChildNumber("view_locked", 1)
-        filters_grp.createChildString("match_name", "")
-        filters_grp.createChildString("match_value", "")
+        filters_grp.createChildString("view_type", "Global, Local, Locked")
+        filters_grp.createChildString("match_names", "")
+        filters_grp.createChildString("match_values", "")
 
         self.__build_default_network()
 

@@ -47,6 +47,10 @@ class Colors:
     edit = (57, 217, 121)  # used by edit button
     """rgb(114, 114, 114)"""
     reset = (114, 114, 114)  # used by reset button
+    """rgb(65, 143, 85)"""
+    capsule_local = (65, 143, 85)
+    """rgb(114, 114, 114)"""
+    capsule_locked = (114, 114, 114)
 
     @classmethod
     def qpallette(cls):

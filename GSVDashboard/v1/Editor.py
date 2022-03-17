@@ -20,6 +20,7 @@
 """
 import logging
 import os
+import re
 import time
 
 try:
@@ -220,30 +221,31 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             parentPolicy=None,
             param=self.__node.getParameter('parsing_mode')
         )
-        self.__pp_view_local = CreateParameterPolicy(
+        self.__pp_filters_grp = CreateParameterPolicy(
             parentPolicy=None,
-            param=self.__node.getParameter('Filters.view_local')
+            param=self.__node.getParameter('Filters')
         )
-        self.__pp_view_global = CreateParameterPolicy(
+        self.__pp_view_type = CreateParameterPolicy(
             parentPolicy=None,
-            param=self.__node.getParameter('Filters.view_global')
+            param=self.__node.getParameter('Filters.view_type')
         )
-        self.__pp_view_locked = CreateParameterPolicy(
+        self.__pp_match_names = CreateParameterPolicy(
             parentPolicy=None,
-            param=self.__node.getParameter('Filters.view_locked')
-        )
-        self.__pp_match_name = CreateParameterPolicy(
-            parentPolicy=None,
-            param=self.__node.getParameter('Filters.match_name')
+            param=self.__node.getParameter('Filters.match_names')
         )
         self.__pp_match_value = CreateParameterPolicy(
             parentPolicy=None,
-            param=self.__node.getParameter('Filters.match_value')
+            param=self.__node.getParameter('Filters.match_values')
         )
 
         self.cbb_mode = ParameterWidgetFactory.buildWidget(
             parent=self,
             policy=self.__pp_parsing_mode
+        )  # type: QtWidgets.QWidget
+
+        self.grp_filters = ParameterWidgetFactory.buildWidget(
+            parent=self,
+            policy=self.__pp_filters_grp
         )  # type: QtWidgets.QWidget
 
         self.ttlb_header = QTitleBar()
@@ -269,8 +271,8 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.setLayout(self.lyt_m)
         self.lyt_m.setSpacing(8)
         self.lyt_m.addWidget(self.ttlb_header)
-        # self.lyt_m.addWidget(self.ttlb_header)
         self.lyt_m.addWidget(self.tw1)
+        self.lyt_m.addWidget(self.grp_filters)
 
         self.ttlb_header.add_widget(self.cbb_mode)
         self.ttlb_header.add_widget(self.btn_update)
@@ -308,7 +310,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
 
         st_gsvs = self.__node.get_gsvs(mode=parse_mode)
         for st_gsv in st_gsvs:
-            TreeWidgetItemGSV(parent=self.tw1, st_gsv=st_gsv)
+            self.__tw_create_item_from(st_gsv)
 
         self.__tw_select_last_selected()
         self.__tw_selection_changed()
@@ -319,6 +321,40 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             "".format(self.__class__.__name__, s_time)
         )
         return
+
+    def __tw_create_item_from(self, stgsv):
+        """
+        Create a tree widget item from the given SuperToolGSV except if this
+        item doesn't pass the user-specified filters.
+
+        Args:
+            stgsv(SuperToolGSV):
+
+        Returns:
+            TreeWidgetItemGSV or None: TreeWidgetItemGSV created or None if not.
+        """
+        filters_dict = self.__get_filters()
+        if filters_dict["global"] and stgsv.is_global:
+            return
+        if filters_dict["local"] and stgsv.is_local:
+            return
+        if filters_dict["locked"] and not stgsv.is_editable:
+            return
+
+        f = filters_dict["match_names"]
+        if f and not re.search(f, stgsv.name):
+            return
+
+        f = filters_dict["match_values"]
+        skip = True
+        for v in stgsv.get_all_values():
+            if f and re.search(f, v):
+                skip = False
+                break
+        if f and skip:
+            return
+
+        return TreeWidgetItemGSV(parent=self.tw1, st_gsv=stgsv)
 
     def __tw_select_last_selected(self):
         """
@@ -408,3 +444,38 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.__tw_update()
         print(args, kwargs)
         return
+
+    def __get_filters(self):
+        """
+        Return the interface user defined filter as a dictionnary.
+
+        Returns:
+            dict:
+        """
+
+        filter_dict = {
+            "global": True,
+            "local": True,
+            "locked": True,
+            "match_names": None,
+            "match_values": None
+        }
+
+        v = self.__pp_view_type.getValue()  # type: str
+        v = v.split(", ")  # type: List[str]
+        if "Global" in v:
+            filter_dict["global"] = False
+        if "Local" in v:
+            filter_dict["local"] = False
+        if "Locked" in v:
+            filter_dict["locked"] = False
+
+        v = self.__pp_match_names.getValue()  # type: str
+        v = None if v == "" else v
+        filter_dict["match_names"] = v
+
+        v = self.__pp_match_value.getValue()  # type: str
+        v = None if v == "" else v
+        filter_dict["match_values"] = v
+
+        return filter_dict
