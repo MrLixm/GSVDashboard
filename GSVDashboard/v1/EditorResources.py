@@ -86,6 +86,7 @@ class Colors:
         """rgba(179, 179, 179, 1)"""
         return cls.qpallette().color(QPalette.Normal, QPalette.Text)
 
+
 class Icons:
     """
 
@@ -101,6 +102,5 @@ class Icons:
     status_l_viewed = os.path.join(__root, "status_l_viewed.svg")
     status_node_getter = os.path.join(__root, "status_node_getter.svg")
     status_node_setter = os.path.join(__root, "status_node_setter.svg")
-    info = os.path.join(__root, "info.svg")
     logo = os.path.join(__root, "gsvdb-logo.svg")
 
