@@ -48,7 +48,9 @@ class Colors:
     """rgb(114, 114, 114)"""
     reset = (114, 114, 114)  # used by reset button
     """rgb(65, 143, 85)"""
-    capsule_local = (65, 143, 85)
+    capsule_edited = (65, 143, 85)
+    """rgb(105, 103, 142)"""
+    capsule_local = (105, 103, 142)
     """rgb(114, 114, 114)"""
     capsule_locked = (114, 114, 114)
 
@@ -79,6 +81,10 @@ class Colors:
         """rgba(117, 117, 117, 1)"""
         return cls.qpallette().color(QPalette.Disabled, QPalette.Text)
 
+    @classmethod
+    def app_text(cls):
+        """rgba(179, 179, 179, 1)"""
+        return cls.qpallette().color(QPalette.Normal, QPalette.Text)
 
 class Icons:
     """

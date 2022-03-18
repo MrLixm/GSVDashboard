@@ -114,6 +114,13 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
 
     parsing_modes = GSV.GSVSettings.get_expected("parsing.mode")
 
+    capsule_options = [
+        'Locked',
+        'Global',
+        'Not-Edited',
+        'Local',
+    ]
+
     _hints = {
         "{}.parsing_mode".format(c.name): {
             "widget": "popup",
@@ -131,16 +138,13 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
         },
         "{}.Filters.view_type".format(c.name): {
             "widget": "capsule",
-            "label": "Only view :",
-            "options": [
-                'Global',
-                'Local',
-                'Locked'
-            ],
+            "label": "Disable :",
+            "options": capsule_options,
             'colors': [
+                resources.Colors.capsule_locked,
                 resources.Colors.yellow_global_disabled,
+                resources.Colors.capsule_edited,
                 resources.Colors.capsule_local,
-                resources.Colors.capsule_locked
             ],
             'delimiter': ', ',
             'equalPartitionWidths': True,
@@ -149,18 +153,21 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
             'verticalMargin': 2,
             'innerMargin': 10,
             'cornerRoundness': 20,
+            "help": "Click on a box to exclude all GSV corresponding to the label on it from the above list widget."
         },
         "{}.Filters.match_names".format(c.name): {
             "label": "name",
             "help": """
-                Only display GSV name matching this regular expression.         
-            """  # TODO
+                <p>Only display GSV names matching this regular expression.</p>
+                <p>The expression is <a href="https://www.datacamp.com/community/tutorials/python-regular-expression-tutorial#summary-table" target="_blank">Python regex</a> formatted. It is evaluated using <code>re.search(gsv_name)</code></p
+            """
         },
         "{}.Filters.match_values".format(c.name): {
             "label": "values",
             "help": """
-                Only display GSV who got at least one value matching this regular expression.
-            """  # TODO
+                <p>Only display GSV who got at least one value matching this regular expression.</p>
+                <p>The expression is <a href="https://www.datacamp.com/community/tutorials/python-regular-expression-tutorial#summary-table" target="_blank">Python regex</a> formatted. It is evaluated using <code>re.search(gsv_value)</code></p>            
+            """
         },
 
     }
@@ -181,7 +188,7 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
         )
         filters_grp = self.getParameters().createChildGroup("Filters")
 
-        filters_grp.createChildString("view_type", "Global, Local, Locked")
+        filters_grp.createChildString("view_type", ", ".join(self.capsule_options))
         filters_grp.createChildString("match_names", "")
         filters_grp.createChildString("match_values", "")
 

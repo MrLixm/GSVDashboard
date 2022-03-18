@@ -263,6 +263,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # ==============
         self.ttlb_header.set_icon(resources.Icons.logo, 24)
         self.ttlb_header.set_icon_tooltip("GSVdb v.{}-{}".format(c.version, c.version_publish))
+        self.ttlb_header.set_icon_link("https://github.com/MrLixm/GSVDashboard")
 
         # ==============
         # Add to Layouts
@@ -338,6 +339,8 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         if filters_dict["global"] and stgsv.is_global:
             return
         if filters_dict["local"] and stgsv.is_local:
+            return
+        if filters_dict["not_edited"] and not stgsv.is_edited:
             return
         if filters_dict["locked"] and not stgsv.is_editable:
             return
@@ -429,6 +432,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         filter_dict = {
             "global": True,
             "local": True,
+            "not_edited": True,
             "locked": True,
             "match_names": None,
             "match_values": None
@@ -442,6 +446,8 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             filter_dict["local"] = False
         if "Locked" in v:
             filter_dict["locked"] = False
+        if "Not-Edited" in v:
+            filter_dict["not_edited"] = False
 
         v = self.__pp_match_names.getValue()  # type: str
         v = None if v == "" else v

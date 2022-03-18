@@ -19,6 +19,7 @@
 
 """
 import logging
+import webbrowser
 from abc import abstractmethod
 
 try:
@@ -487,6 +488,8 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
 
         color1 = resources.Colors.app_background_light().getRgb()
         color2 = "rgb(71,72,101)"
+        color3 = resources.Colors.app_disabled_text().getRgb()
+
         style = """
         
         QTreeView {{
@@ -528,6 +531,11 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
             border-right: 1px solid {1};
         }}
 
+        QHeaderView {{
+            color: rgba{2};
+            font-weight: 500;
+        }}
+
         QHeaderView::section {{
             margin:3px;
             margin-bottom:8px;
@@ -549,7 +557,7 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
             margin: 3px;
         }}
 
-        """.format(color1, color2)
+        """.format(color1, color2, color3)
 
         self.setStyleSheet(style)
         self.setColumnCount(TreeWidgetItemGSV.column_number())
@@ -579,7 +587,7 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
         header.setSectionResizeMode(header.Interactive)
         header.setSectionResizeMode(0, header.ResizeToContents)
         header.setSectionResizeMode(2, header.Stretch)
-        header.setSortIndicator(0, QtCore.Qt.DescendingOrder)
+        header.setSortIndicator(0, QtCore.Qt.AscendingOrder)
 
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
@@ -772,6 +780,7 @@ class QTitleBar(QtWidgets.QWidget):
 
         -[icon]--Title------------------- {widgets}
 
+    Icon can have a tool-tip and open an url when clicked.
     """
 
     def __init__(self, parent=None, title=None):
@@ -779,6 +788,7 @@ class QTitleBar(QtWidgets.QWidget):
         super(QTitleBar, self).__init__(parent)
         self.__title = title
         self.__icon = None
+        self.__url = None
         self.__widgets = list()
 
         self.icon_size = 16
@@ -844,6 +854,7 @@ class QTitleBar(QtWidgets.QWidget):
         self.lyt_aside.setSpacing(10)
         self.lyt_aside.setContentsMargins(5, 0, 5, 0)
 
+        self.icon.clicked.connect(self.__open_url)
         return
 
     def __uibake(self):
@@ -915,6 +926,15 @@ class QTitleBar(QtWidgets.QWidget):
 
         return
 
+    def __open_url(self):
+
+        if not self.__url:
+            return
+
+        webbrowser.open(self.__url)
+
+        return
+
     def add_widget(self, widget):
         """
         Add a new widgets at the end.
@@ -966,6 +986,10 @@ class QTitleBar(QtWidgets.QWidget):
             tooltip(str):
         """
         self.icon.setToolTip(tooltip)
+        return
+
+    def set_icon_link(self, url):
+        self.__url = url
         return
 
 
