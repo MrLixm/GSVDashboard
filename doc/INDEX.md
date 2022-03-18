@@ -1,6 +1,6 @@
-# ![logo](img/logo.svg) Index
+#  <img src="img/logo.svg" width="32"> Index
 
-Welcome on the GSVDB supertool's documentation.
+Welcome on the GSVDb supertool's documentation.
 
 [![root](https://img.shields.io/badge/back_to_root-536362?)](../README.md)
 
@@ -16,17 +16,55 @@ location registered by the `KATANA_RESOURCES` env variable.
 "KATANA_RESOURCES=%ROOT%"
 ```
 
-> Tested on Katana 4.0v2 and 4.5v1, no guarantee it works on lower versions
-> (but it should).
+> Tested on Katana 3.6v5, 4.0v2 and 4.5v1, no guarantee it works on lower
+> versions (but it should).
 
 ## Use
 
-
 ![preview image of gsvdb node with annotations](img/doc-ui-look.jpg)
 
-Make sure the node is always viewed when using `logical_upstream` mode.
+> ⚠ Make sure the node is always viewed when using `logical_upstream` mode.
 
-**Some reminder about GSVs :**
+### Filtering
+
+You can filter per-node the GSV listed in the widget. You have 3 options :
+
+#### Disable
+
+![parameter screenshot](img/doc-filters-disable.png)
+
+By default all 4 types are enabled.
+
+You can choose to disable the GSV type specified in the label. Like clicking
+`Not-Edited` will remove all GSV that are not currently edited by this SuperTool
+node.
+
+The node is a capsule widget. To set it with an expression you can use a comma
+separated list of labels like   
+> `"Locked, Global, Local"`
+
+#### names
+
+Only display GSV names matching this regular expression.
+
+The expression is Python regex formatted. 
+It is evaluated using `re.search(gsv_name)`
+
+> 💡 **tips**
+> 
+> If you want to exclude names instead of isolating them, you can
+> use the regex syntax `[^...]` .  
+> Example: `[^fx_enable][^shading]` will exclude all GSVs names matching 
+> `fx_enable` and `shading`.
+
+#### values
+
+Only display GSV who got at least one value matching this regular expression.
+
+The expression is Python regex formatted. 
+It is evaluated using `re.search(gsv_value)`
+
+### Some reminder about GSVs :
 
 - Only the most upstream "Setter" node determine which GSV value is being used.
 That's why if a GSV is edited upstream , it became locked. A GSV is considered
@@ -38,6 +76,8 @@ This mean you can't use the "GSV Menu Bar" (at top) anymore for this variable.
 
 ### Parsing settings
 
+Change how upstream nodes are found.
+
 ![preview gif of gsvdb parsing settings configuration](img/doc-parse-settings.gif)
 
 
@@ -48,7 +88,7 @@ excluded_gsv_names = ["gaffersate"]
 excluded_as_groupnode_type = ["GafferThree", "Importomatic"]
 ```
 
-You can specify scene parsing settings using user parameters. Root of these
+You can specify scene parsing settings using `user parameters`. Root of these
 parameters can be one of (are in resolution order) :
 
 - on a node named `GSVDB_config`

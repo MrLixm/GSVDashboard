@@ -47,12 +47,22 @@ logger = logging.getLogger("{}.Node".format(c.name))
 TIME = NodegraphAPI.GetCurrentTime()
 
 
+def get_opscript_gsv_name(knode):
+
+    lua_script = knode.getParameter("lua.script").getValue()
+
+    return
+
+
 class GSVSettings(dict):
     """
     A regular dictionary object with a fixed structure. Structure is verified
     through ``validate()`` method.
 
     Used to configure the output result of the scene parsing.
+
+    [nodes.X.name](str or callable):
+    [nodes.X.values](str or callable):
 
     [excluded.asGroupsNodeType](list of str):
         list of node type that should not be considered as groups and children
@@ -82,6 +92,11 @@ class GSVSettings(dict):
             },
             "VariableDelete": {
                 "action": "setter",
+                "name": "variableName",
+                "values": gsv_delete
+            },
+            "OpScript": {
+                "action": "getter",
                 "name": "variableName",
                 "values": gsv_delete
             }
@@ -235,9 +250,11 @@ class GSVNode(object):
 
         self.gsv_action = self.scene.settings["nodes"][self.type]["action"]
 
-        self.gsv_name = self.get_parameter(
-            param_path=self.scene.settings["nodes"][self.type]["name"]
-        )[0]
+        gsvname = self.scene.settings["nodes"][self.type]["name"]
+        if isinstance(gsvname, str):
+            self.gsv_name = self.get_parameter(param_path=gsvname)[0]
+        elif callable(gsvname):
+            self.gsv_name = gsvname(node)
 
         values_param = self.scene.settings["nodes"][self.type]["values"]
         if values_param == GSVSettings.gsv_delete:
