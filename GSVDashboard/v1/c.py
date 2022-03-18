@@ -25,8 +25,8 @@ v_major = 2
 v_minor = 0  # have to update the Node if incremented
 v_patch = 0  # bug fix not affecting the Node structure
 
-v_dev = 17
-v_published = 88  # auto incremented when tested
+v_dev = 18
+v_published = 92  # auto incremented when tested
 
 # used to determine if the Node need to be updated
 version = int("{}{}".format(v_major, v_minor))

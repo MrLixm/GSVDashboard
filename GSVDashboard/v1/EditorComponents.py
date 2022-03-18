@@ -19,6 +19,7 @@
 
 """
 import logging
+import os
 import webbrowser
 from abc import abstractmethod
 
@@ -31,6 +32,9 @@ from PyQt5 import (
     QtCore,
     QtWidgets,
     QtGui
+)
+from Katana import (
+    UI4
 )
 
 from . import c
@@ -418,10 +422,33 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
         self._update_columns_icon([0])
         self._update_size_hints()
 
+        self.__cook_issues()
+
         logger.debug(
             "[{}][__cook] Finished."
             "".format(self.__class__.__name__)
         )
+
+        return
+
+    def __cook_issues(self):
+        """
+        Check the issues stored on the SuperToolGSV instance and update the
+        item interface accordingly.
+        """
+
+        for issue in self.gsv.list_issues():
+
+            if issue == SuperToolGSV.issues.edit_dont_exists:
+
+                icon = UI4.Util.IconManager.GetPixmap(
+                    os.path.join("Icons", "yellowWarning16.png")
+                )
+                icon = QtGui.QIcon(icon)
+                self.setIcon(1, icon)
+                self.setToolTip(1, issue)
+
+            continue
 
         return
 

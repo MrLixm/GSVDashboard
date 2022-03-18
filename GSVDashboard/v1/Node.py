@@ -415,6 +415,11 @@ class SuperToolGSVStatus:
     local_set = "local set locally"
 
 
+class SuperToolGSVIssues:
+
+    edit_dont_exists = "This GSV is being edited but it doesn't exists in the scene anymore."
+
+
 class SuperToolGSV(object):
     """
     Object describing a GSV in the Katana scene relative to this super tool.
@@ -429,6 +434,7 @@ class SuperToolGSV(object):
     """
 
     statuses = SuperToolGSVStatus
+    issues = SuperToolGSVIssues
 
     def __init__(self, data):
 
@@ -515,6 +521,22 @@ class SuperToolGSV(object):
             "SuperToolGSV <{}> was not built properly and a status cannot "
             "be found.".format(self.name)
         )
+
+    def list_issues(self):
+        """
+        Return a list of issues this GSV have.
+        Empty list if None.
+
+        Returns:
+            list of str: list of SuperToolGSVIssues issues
+        """
+
+        issues = list()
+
+        if self.__data.nodes[0].node == self.__knode and len(self.__data.nodes) == 1:
+            issues.append(SuperToolGSVIssues.edit_dont_exists)
+
+        return issues
 
     def get_current_value(self):
         """
