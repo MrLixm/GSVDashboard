@@ -37,7 +37,6 @@ from Katana import (
     Utils,
     UI4
 )
-from UI4 import FormMaster
 from UI4.FormMaster import CreateParameterPolicy as CreateParameterPolicy
 from UI4.FormMaster.KatanaFactory import ParameterWidgetFactory as ParameterWidgetFactory
 
@@ -281,16 +280,19 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # Connections
         # ==============
 
-        self.tw1.itemSelectionChanged.connect(self.__tw_selection_changed)
+        # note: we doesn't need to set Node's parameters callback to update
+        # the tw as we already have call backs when any parameter is finalized
+        # (see __setup_event_handlers)
+
         self.tw1.edited_sgn.connect(self.__gsv_set_value)
         self.tw1.reset_sgn.connect(self.__gsv_remove_edit)
-        self.__pp_parsing_mode.addCallback(self.__parsing_mode_changed)
         self.btn_update.clicked.connect(self.__tw_update)
 
         return
 
     def __tw_update(self, *args, **kwargs):
         """
+        Re-build the tree widget from scratch.
         """
         s_time = time.clock()
 
@@ -313,7 +315,6 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             self.__tw_create_item_from(st_gsv)
 
         self.__tw_select_last_selected()
-        self.__tw_selection_changed()
 
         s_time = time.clock() - s_time
         logger.info(
@@ -381,26 +382,6 @@ class GSVDashboardEditor(QtWidgets.QWidget):
 
         return
 
-    def __tw_selection_changed(self):
-        """
-        When selection change, update the properties displayed.
-        """
-
-        gsv_data = self.tw1.get_selected_gsv_data()
-        if not gsv_data:
-            # TODO [optional] see what to do, but should "never" happens.
-            return
-
-        # self.tw1.last_selected = gsv_data.name
-
-
-        logger.debug(
-            "[{}][__tw_selection_changed] Finished."
-            "SuperToolGSV found is <{}>."
-            "".format(self.__class__.__name__, gsv_data)
-        )
-        return
-
     def __gsv_set_value(self, stgsv, new_value):
         """
         Called by signals from GSVPropertiesWidget.
@@ -435,14 +416,6 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         """
         self.__node.unedit_gsv(stgsv.name)
         self.__tw_update()
-        return
-
-    def __parsing_mode_changed(self, *args, **kwargs):
-        """
-        Called when the scene parsing mode was changed.
-        """
-        self.__tw_update()
-        print(args, kwargs)
         return
 
     def __get_filters(self):

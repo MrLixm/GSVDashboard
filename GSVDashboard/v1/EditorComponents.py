@@ -18,9 +18,7 @@
     limitations under the License.
 
 """
-import inspect
 import logging
-import os.path
 from abc import abstractmethod
 
 try:
@@ -33,11 +31,6 @@ from PyQt5 import (
     QtWidgets,
     QtGui
 )
-from Katana import (
-    Utils,
-    UI4
-)
-
 
 from . import c
 from . import EditorResources as resources
@@ -47,13 +40,10 @@ from .GSV import GSVNode
 
 __all__ = [
     "TreeWidgetItemGSV",
-    "GSVPropertiesWidget",
     "QTitleBar",
     "ResetButton",
     "EditButton",
     "GSVTreeWidget",
-    "VLabeledWidget",
-    "HLabeledWidget"
 ]
 
 logger = logging.getLogger("{}.EditorComponents".format(c.name))
@@ -322,7 +312,7 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
     _column_config = {
         "all": {
             "width": None,
-            "height": 30,
+            "height": 32,
         },
         0: {
             "label": "",
@@ -475,185 +465,6 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
         return
 
 
-class TreeWidgetItemGSVNode(TreeWidgetItemBase):
-    """
-    Create and build a QTreeWidgetItem representing a GSVNode.
-
-    Column 0 : Icon
-    Column 1 : Node Name
-    Column 2 : GSV Values the node is using.
-
-    Args:
-        gsv_node(GSVNode): A Katana node that use the GSV feature.
-        parent(QtWidgets.QTreeWidget):
-
-    Attributes:
-        gsv_node(GSVNode): A Katana node that use the GSV feature.
-
-    """
-
-    _status_config = {
-        "colors": {
-        },
-        "icons": {
-            GSVNode.action_getter: resources.Icons.status_node_getter,
-            GSVNode.action_setter: resources.Icons.status_node_setter,
-        },
-        "sorting": {
-            GSVNode.action_getter: 0,
-            GSVNode.action_setter: 1,
-        }
-    }
-
-    _column_config = {
-        "all": {
-            "width": None,
-            "height": 20,
-        },
-        0: {
-            "label": "",
-            "width": 0,
-            "height": None,
-        },
-        1: {
-            "label": "Node Name",
-            "width": None,
-            "height": None,
-        },
-        2: {
-            "label": "Node GSV Values",
-            "width": None,  # fill all the space left
-            "height": None,
-        }
-    }
-
-    def __init__(self, gsv_node, parent):
-
-        super(TreeWidgetItemGSVNode, self).__init__(parent)
-        self.gsv_node = gsv_node
-        self.status = self.gsv_node.gsv_action
-
-        self.__cook()
-
-        return
-
-    def __cook(self):
-
-        # column: icon
-        column = 0
-        self.setTextAlignment(column, QtCore.Qt.AlignCenter)
-        self.setToolTip(column, "GSV Node Action: {}".format(self.status))
-        data = self._status_config["sorting"].get(self.status, 0)
-        self.setData(column, QtCore.Qt.UserRole, data)
-
-        # column: gsv node
-        column = 1
-        self.setText(column, self.gsv_node.node_name)
-        self.setTextAlignment(column, QtCore.Qt.AlignVCenter)
-        self.setToolTip(column, "Node Name")
-        data = self.text(column)
-        self.setData(column, QtCore.Qt.UserRole, data)
-
-        # column: gsv node values
-        column = 2
-        text = self.gsv_node.gsv_values
-        self.setText(column, list2str(text))
-        self.setTextAlignment(column, QtCore.Qt.AlignLeft)
-        self.setToolTip(column, "GSV Values the node is using.")
-        self.setTextAlignment(column, QtCore.Qt.AlignVCenter)
-        data = len(text)
-        self.setData(column, QtCore.Qt.UserRole, data)
-
-        # all columns should be colored
-        self._update_columns_color([0, 1, 2])
-        # only first column hold the icon
-        self._update_columns_icon([0])
-        self._update_size_hints()
-
-        return
-
-
-class NodeTreeWidget(QtWidgets.QTreeWidget):
-    """
-    TreeWidget used to hold GSVNodes.
-    Children are TreeWidgetItemGSVNode instances.
-    """
-
-    def __init__(self):
-        super(NodeTreeWidget, self).__init__()
-        self.__cook()
-        return
-
-    def __cook(self):
-
-        style = """
-        QTreeWidget {
-            border-radius: 3px;
-            border: 0;
-            padding: 3px;
-        }    
-        """
-
-        # treewidget
-        self.setStyleSheet(style)
-        self.setHeaderHidden(True)
-        self.setColumnCount(TreeWidgetItemGSVNode.column_number())
-        self.setMinimumHeight(100)
-        self.setAlternatingRowColors(False)
-        self.setSortingEnabled(True)
-        self.setUniformRowHeights(True)
-        self.setRootIsDecorated(False)
-        self.setItemsExpandable(False)
-        # select only one row at a time
-        self.setSelectionMode(self.SingleSelection)
-        # select only rows
-        self.setSelectionBehavior(self.SelectRows)
-        # remove dotted border on columns
-        self.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.setColumnWidth(0, TreeWidgetItemGSVNode.column_size(0)[0])
-        self.setHeaderLabels(TreeWidgetItemGSVNode.column_labels())
-        header = self.header()  # type: QtWidgets.QHeaderView
-        header.setSectionResizeMode(header.ResizeToContents)
-        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.customContextMenuRequested[QtCore.QPoint].connect(
-            self.__contextmenu
-        )
-
-        return
-
-    def __contextmenu(self, point):
-        """
-        Create a context menu at the given point.
-
-        Args:
-            point(QtCore.QPoint):
-
-        Returns:
-            bool: True if created
-        """
-
-        # Infos about the node selected.
-        index = self.indexAt(point)
-        if not index.isValid():
-            logger.debug(
-                "[NodeTreeWidget][__contextmenu] index not valid, returning."
-            )
-            return False
-
-        selected_item = self.selectedItems()[0]  # type: TreeWidgetItemGSVNode
-
-        # Building menu
-        menu = QtWidgets.QMenu()
-
-        act_select = QtWidgets.QAction("Select and Edit the Node", menu)
-        act_select.triggered.connect(selected_item.gsv_node.select_edit)
-        menu.addAction(act_select)
-
-        menu.exec_(QtGui.QCursor.pos())
-
-        return True
-
-
 class GSVTreeWidget(QtWidgets.QTreeWidget):
     """
     TreeWidget used to display GSV in Scene.
@@ -770,9 +581,48 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
         header.setSectionResizeMode(2, header.Stretch)
         header.setSortIndicator(0, QtCore.Qt.DescendingOrder)
 
+        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+
+        # CONNECTIONS
+
         self.itemSelectionChanged.connect(self.__on_selection_changed)
+        self.customContextMenuRequested[QtCore.QPoint].connect(
+            self.__contextmenu
+        )
 
         return
+
+    def __contextmenu(self, point):
+        """
+        Create a context menu at the given point.
+
+        Args:
+            point(QtCore.QPoint):
+
+        Returns:
+            bool: True if created
+        """
+
+        # Infos about the node selected.
+        index = self.indexAt(point)
+        if not index.isValid():
+            logger.debug(
+                "[GSVTreeWidget][__contextmenu] index not valid, returning."
+            )
+            return False
+
+        item = self.itemAt(point)  # type: TreeWidgetItemGSV
+        stgsv = item.gsv
+
+        # Building menu
+        menu = MenuNodeList()
+        menu.build_from(stgsv)
+        menu.display(QtGui.QCursor.pos())
+
+        logger.debug(
+            "[GSVTreeWidget][__contextmenu] Finished for gsv={}.".format(stgsv.name)
+        )
+        return True
 
     def __on_selection_changed(self):
 
@@ -846,6 +696,68 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
     UI: Custom Widgets
 
 """
+
+
+class MenuNodeList(QtWidgets.QMenu):
+    """
+    Context menu for the GSVTreewidget that list all nodes for the currently
+    selected GSV.
+
+    ::
+
+        | Associated Nodes
+        | ----------------
+        | node_name1    >   | Select and Edit Node
+        |                   | gsv_value1
+        |                   | gsv_value2
+        | node_name2
+
+    """
+
+    icons = {
+        GSVNode.action_getter: resources.Icons.status_node_getter,
+        GSVNode.action_setter: resources.Icons.status_node_setter,
+    }
+
+    def build_from(self, stgsv):
+        """
+        Args:
+            stgsv(SuperToolGSV):
+        """
+
+        for gsvnode in stgsv.get_nodes():
+
+            menu = QtWidgets.QMenu(gsvnode.node_name, self)
+            qpixmap = QtGui.QPixmap(self.icons.get(gsvnode.gsv_action))
+            qicon = QtGui.QIcon(qpixmap)
+            menu.setIcon(qicon)
+            menu.setToolTip("Node's name")
+
+            act = QtWidgets.QAction("Select and Edit Node", menu)
+            act.triggered.connect(gsvnode.select_edit)  # TODO see if this works
+
+            menu.addAction(act)
+            menu.addSeparator()
+
+            for node_gsv_value in gsvnode.gsv_values:
+                act = QtWidgets.QAction(node_gsv_value, menu)
+                act.setDisabled(True)
+                menu.addAction(act)
+
+            self.addMenu(menu)
+
+        return
+
+    def display(self, position):
+        """
+
+        Args:
+            position(QtCore.QPoint):
+
+        """
+        self.exec_(position)
+        return
+
 
 """
 Low-level widget
@@ -1081,12 +993,6 @@ class ResetButton(QtWidgets.QPushButton):
         """.format(str(self.bgcolor)[1:][:-1])
 
         self.setStyleSheet(style)
-        self.setSizePolicy(
-            QtWidgets.QSizePolicy(
-                QtWidgets.QSizePolicy.Maximum,
-                QtWidgets.QSizePolicy.Maximum
-            )
-        )
 
         return
 
@@ -1096,487 +1002,6 @@ class EditButton(ResetButton):
     bgcolor = resources.Colors.edit
 
 
-"""
-Higher-level widget
-"""
-
-
-class VLabeledWidget(QtWidgets.QWidget):
-    """
-    Wrap an existing widget with a bottom info line composed of an optional
-    info icon (with a tooltip) and a label.
-    ::
-
-        [                  ]
-        [  content widget  ]
-        [                  ]
-        [info icon][text]
-
-    Args:
-        content(QtWidgets.QWidget):
-        text(str):
-        info_text(str): used in the info icon tooltip
-
-    """
-    direction = QtWidgets.QBoxLayout.TopToBottom
-    info_icon_size = 10
-    txt_font_size = 10
-
-    def __init__(self, content=None, text=None, info_text=None):
-        super(VLabeledWidget, self).__init__()
-        self.__content = None
-        self.__text = None
-        self.__info = None
-        self.__ui_build()
-
-        self.set_content(content)
-        self.set_text(text)
-        self.set_info(info_text)
-
-        return
-
-    def __ui_build(self):
-
-        # =============
-        # Create Styles
-        # =============
-
-        main_window = UI4.App.MainWindow.GetMainWindow()
-        qpalette = main_window.palette()  # type: QtGui.QPalette
-        bgcolor = qpalette.color(qpalette.Background)
-        color_disabled = qpalette.color(qpalette.Disabled, qpalette.Text)
-        style_info = """
-        QPushButton {{
-            background-color: transparent;
-            margin: 0;
-            border: 0;
-        }}
-
-        QToolTip {{
-            background-color: rgb{0};
-            border: 1px solid rgba({1}, 0.5);
-            border-radius: 3px;
-            color: rgb({1});
-            padding: 4px;
-        }}
-        """.format(
-            bgcolor.getRgb()[:-1],
-            str(color_disabled.getRgb()[:-1])[1:][:-1]
-        )
-
-        style_lbl = """
-        QLabel{{
-            font-size: {}px;
-            margin-top: 2px;
-        }}
-        """.format(self.txt_font_size)
-
-        # ==============
-        # Create Layouts
-        # ==============
-        self.lyt = QtWidgets.QBoxLayout(self.direction)
-        self.lyt_text = QtWidgets.QHBoxLayout()
-
-        # ==============
-        # Create Widgets
-        # ==============
-        self.lbl = QtWidgets.QLabel()
-        self.info = QtWidgets.QPushButton()
-
-        # ==============
-        # Modify Widgets
-        # ==============
-        self.lbl.setEnabled(False)
-        # small text for label
-        self.lbl.setStyleSheet(style_lbl)
-
-        qpixmap = QtGui.QPixmap(resources.Icons.info)
-        qpixmap = qpixmap.scaled(
-            self.info_icon_size,
-            self.info_icon_size,
-            transformMode=QtCore.Qt.SmoothTransformation
-        )
-        qicon = QtGui.QIcon(qpixmap)
-        self.info.setIcon(qicon)
-        # self.info.setEnabled(False)
-        # reset stylesheet, we only need the icon
-        self.info.setStyleSheet(style_info)
-        # self.info.setMaximumSize(self.info_icon_size, self.info_icon_size)
-        self.info.setSizePolicy(
-            QtWidgets.QSizePolicy(
-                QtWidgets.QSizePolicy.Maximum,
-                QtWidgets.QSizePolicy.Maximum
-            )
-        )
-
-        # ==============
-        # Modify Layouts
-        # ==============
-        self.lyt_text.addWidget(self.info, QtCore.Qt.AlignCenter)
-        self.lyt_text.addWidget(self.lbl)
-
-        temp_widget = QtWidgets.QWidget()
-        temp_widget.setHidden(True)
-        self.lyt.insertWidget(0, temp_widget)
-        self.lyt.addLayout(self.lyt_text)
-        self.lyt.setSpacing(0)
-
-        self.setLayout(self.lyt)
-        return
-
-    def __ui_bake(self):
-
-        if self.__text:
-            self.lbl.setText(self.__text)
-        else:
-            self.lbl.setText("")
-
-        if self.__info:
-            self.info.setToolTip(self.__info)
-            self.info.setHidden(False)
-        else:
-            self.info.setHidden(True)
-
-        if self.__content is not None:
-            # __content is always the first item, remove it first then add it back.
-            removed_widget = self.lyt.takeAt(0).widget()  # can return None
-            if removed_widget and not removed_widget == self.__content:
-                # this delete the widget
-                removed_widget.deleteLater()
-            # add the new content widget
-            self.lyt.insertWidget(0, self.__content)
-
-        return
-
-    @property
-    def content(self):
-        return self.__content
-
-    @content.setter
-    def content(self, content):
-        self.set_content(content)
-        return
-
-    def set_content(self, content):
-        self.__content = content
-        self.__ui_bake()
-        return
-
-    def set_text(self, text):
-        """
-        Args:
-            text(str or None):
-        """
-        self.__text = text
-        self.__ui_bake()
-        return
-
-    def set_info(self, info_text):
-        """
-        Args:
-            info_text(str or None): text to use in the info icon
-        """
-        self.__info = info_text
-        self.__ui_bake()
-        return
-
-
-class HLabeledWidget(VLabeledWidget):
-    direction = QtWidgets.QBoxLayout.RightToLeft
-
-
-class GSVPropertiesWidget(QtWidgets.QFrame):
-    """
-    """
-
-    value_changed_sgn = QtCore.pyqtSignal(object, object)
-    unedited_sgn = QtCore.pyqtSignal(object)
-    status_changed_sgn = QtCore.pyqtSignal(str, str)
-
-    status_editable = "editable"
-    status_edited = "edited"
-    status_locked = "locked"  # = read only
-
-    def __init__(self):
-
-        super(GSVPropertiesWidget, self).__init__()
-
-        self.__status = self.status_locked  # default status is read only
-        self.__data = None  # type: SuperToolGSV
-
-        self.lyt = None
-        self.lyt_top = None
-        self.lbl_name = None
-        self.cbb_value = None
-        self.tw_nodes = None
-
-        self.__ui_cook()
-
-        return
-
-    @property
-    def status(self):
-        return self._status
-
-    @property
-    def _status(self):
-        return self.__status
-
-    @_status.setter
-    def _status(self, new_status):
-        """
-        Change current status and emit signal if there was an actual change.
-        Private property cause we don't want to be able to set the status
-        directly from outside.
-
-        Args:
-            new_status(str):
-        """
-        before_status = self.__status
-        self.__status = new_status
-        # check if the update actually changed something
-        if before_status == new_status:
-            # don't emit signal if no change
-            return
-        self.status_changed_sgn.emit(new_status, before_status)
-        return
-
-    def set_data(self, gsv_data):
-        """
-        Set the GSV data this widget represents.
-        Handle the redraw of the ui with the new data.
-
-        Args:
-            gsv_data(SuperToolGSV):
-
-        """
-
-        self.__data = gsv_data
-        self.__update_status()
-        # update the ui with the new data
-        self.__ui_bake()
-
-        return
-
-    def set_edited(self):
-        """
-        If the widget is editable, turn it into edited and emit the
-        corresponding signals.
-        """
-
-        if not self.status == self.status_editable:
-            logger.warning(
-                "[{}][set_edited] Called but status is not editable but <{}>."
-                "".format(self.__class__.__name__, self.status)
-            )
-            return
-
-        self._status = self.status_edited
-        self.__ui_bake()
-        self.__value_changed()  # call __update_status
-        return
-
-    def set_unedited(self):
-        """
-        Reset the interface as it was never modified by the user.
-        If the widget was being edited, it is no more.
-
-        Emits:
-            reseted_sgn(SuperToolGSV): emit the current GSV represented
-                as SuperToolGSV instance.
-        """
-        # we do not want to unedit if we are already unedited.
-        if not self.status == self.status_edited:
-            logger.warning(
-                "[{}][set_unedited] Called, but _edited is already False."
-                "".format(self.__class__.__name__)
-            )
-            return
-
-        # order is important
-        self._status = self.status_editable
-        self.__ui_bake()
-        self.unedited_sgn.emit(self.__data)
-        return
-
-    def __ui_cook(self):
-
-        # =============
-        # Create Styles
-        # =============
-
-        main_window = UI4.App.MainWindow.GetMainWindow()
-        qpalette = main_window.palette()  # type: QtGui.QPalette
-        color_disabled = qpalette.color(qpalette.Disabled, qpalette.Text)
-        darkbgcolor = qpalette.color(
-            qpalette.Normal,
-            qpalette.Shadow
-        )
-
-        style_lbl = """
-            border: 1px solid rgba({0}, 0.25);
-            border-radius: 3px;
-            padding: 3px;
-        """.format(str(color_disabled.getRgb()[:-1])[1:][:-1])
-
-        style = """
-        QFrame#{} {{
-            border: 2px solid rgba{};
-            border-top-width: 0;
-            border-bottom-width: 0;
-            border-right-width: 0;
-        }}
-        """.format(self.__class__.__name__, darkbgcolor.getRgb())
-
-        # ==============
-        # Create Layouts
-        # ==============
-        self.lyt = QtWidgets.QVBoxLayout()
-        self.lyt_top = QtWidgets.QHBoxLayout()
-
-        # ==============
-        # Create Widgets
-        # ==============
-        self.lbl_name = VLabeledWidget(QtWidgets.QLabel())
-        self.cbb_value = VLabeledWidget(QtWidgets.QComboBox())
-        self.tw_nodes = VLabeledWidget(NodeTreeWidget())
-
-        # ==============
-        # Modify Widgets
-        #
-        # Have to use .content on VLabeledWidget() for now,
-        # see to remove this drawback later
-        # ==============
-
-        self.setObjectName(str(self.__class__.__name__))
-        self.setContentsMargins(10, 20, 10, 20)
-        self.setStyleSheet(style)
-
-        self.lbl_name.setEnabled(False)
-        self.lbl_name.set_text("Name")
-        self.lbl_name.content.setStyleSheet(style_lbl)
-        self.cbb_value.content.setEditable(False)
-        self.cbb_value.set_text("Values")
-        self.cbb_value.set_info(
-            "Values the GSV can take based on what values nodes are using.\n"
-            "The currently active value should correspond to last value set "
-            "for the gsv (if the GSV is set), but this might not be accurate."
-        )
-        # treewidget
-        self.tw_nodes.set_text("Linked Nodes")
-
-        # ==============
-        # Modify Layouts
-        # ==============
-        self.lyt_top.addWidget(self.lbl_name)
-        self.lyt_top.addWidget(self.cbb_value)
-        self.lyt.addLayout(self.lyt_top)
-        self.lyt.addWidget(self.tw_nodes)
-        self.setLayout(self.lyt)
-
-        # =================
-        # Setup Connections
-        # =================
-
-        # only emit on user interaction
-        self.cbb_value.content.activated.connect(self.__value_changed)
-
-        return
-
-    def __ui_bake(self):
-        """
-        Fill the widgets with content base on __data attribute without having
-        to recreate them.
-        """
-
-        if not self.__data:
-            logger.error(
-                "[GSVPropertiesWidget][__ui_cook] Called but "
-                "self.__data is None."
-            )
-            return
-
-        # label
-        self.lbl_name.content.setText(self.__data.name)
-        # cbb
-        self.cbb_value.content.clear()
-        self.cbb_value.content.addItems(self.__data.get_all_values())
-        self.cbb_value.content.setCurrentText(self.__data.get_current_value())
-        # cbb is enable only when the status is "edited"
-        if self.status != self.status_edited:
-            self.cbb_value.content.setEnabled(False)
-        else:
-            self.cbb_value.content.setEnabled(True)
-        # treewidget
-        self.__tw_update()
-
-        return
-
-    def __tw_update(self):
-        """
-        Populate the node tree widget with GSVNode fron the current GSV.
-        """
-
-        # clear the treewidget before adding new entries
-        self.tw_nodes.content.clear()
-
-        for gsvnode in self.__data.get_nodes():
-            qtwi = TreeWidgetItemGSVNode(
-                gsv_node=gsvnode,
-                parent=self.tw_nodes.content
-            )
-
-        logger.debug(
-            "[{}][__tw_update] Finished.".format(self.__class__.__name__)
-        )
-        return
-
-    def __update_status(self):
-        """
-        Update ``status`` attribute according to instance attributes.
-        Status depends of :
-
-        * ``__data`` : if locked
-
-        Emits:
-            status_changed_sgn:
-                If status is different from previous one.
-        """
-        if not self.__data:
-            logger.warning(
-                "[GSVPropertiesWidget][update_status] Called but "
-                "self.__data is None."
-            )
-            self.__status = self.status_locked
-            # return without emitting signal
-            return
-
-        if not self.__data.is_editable:
-            self._status = self.status_locked
-
-        # The SuperTool already have a node that edit this GSV or this widget
-        # is marked as edited :
-        elif self.__data.is_edited:
-            self._status = self.status_edited
-
-        else:
-            self._status = self.status_editable
-
-        return
-
-    def __value_changed(self):
-        """
-        To call when the user edit the ``value combobox``.
-
-        Emits:
-            value_changed_sgn(tuple(SuperToolGSV, str)):
-                current GSV data + new value set.
-
-        """
-        self._status = self.status_edited
-        value = self.cbb_value.content.currentText()  # type: str
-        self.value_changed_sgn.emit(self.__data, value)
-        return
 
 
 
