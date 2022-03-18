@@ -1,14 +1,13 @@
-# ![SuperTool](https://img.shields.io/badge/SuperTool-333333?labelColor=blueviolet) GSV Dashboard (GSVDB)
+# ![SuperTool](https://img.shields.io/badge/SuperTool-333333?labelColor=blueviolet) GSVDashboard
 
-![Python](https://img.shields.io/badge/Python-2+-4f4f4f?labelColor=FED142&logo=python)
-![katana version](https://img.shields.io/badge/Katana-4.0+-4f4f4f?labelColor=111111&logo=katana&logoColor=FCB123)
-[![License](https://img.shields.io/badge/⚖_license-Apache_2.0-4f4f4f?labelColor=blue)](LICENSE.md)
+![Python](https://img.shields.io/badge/Python-2+-4f4f4f?labelColor=3776ab&logo=python&logoColor=FED142)
+![katana version](https://img.shields.io/badge/Katana-3.6+-4f4f4f?labelColor=111111&logo=katana&logoColor=FCB123)
 
 
 Preview and edit the Graph State Variables (GSV) at the current point in your
-nodegraph (or anywhere). List local and global GSVs.
+nodegraph (or anywhere).
 
-![demo gif](./doc/img/demo.gif)
+![demo gif](./doc/img/cover.jpg)
 
 # Features
 
@@ -20,7 +19,8 @@ nodegraph (or anywhere). List local and global GSVs.
 - List all the GSV values *used in parsed scene*.
 - Non-already-edited GSV can be edited using the possible values found.
 - Listing of node using X selected GSV. (node can be selected)
-- Scene parsing setting can be set from a node in the scene.
+- Filter GSV displayed based on type / name / values (with regex).
+- Scene parsing setting can be set from a node in the scene for all GSVDb nodes.
 
 # Documentation
 

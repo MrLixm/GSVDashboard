@@ -35,3 +35,7 @@ if GSVDashboard:
            (GSVDashboard.GSVDashboardNode, GSVDashboard.get_editor)
         )
     ]
+
+print(
+    "[SuperTools][GSVDashboard] Registered {}".format(GSVDashboard.version)
+)

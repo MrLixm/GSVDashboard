@@ -5,7 +5,7 @@
 set "U_KATANA_VERSION=3.6v5"
 set "U_KATANA_HOME=C:\Program Files\Katana%U_KATANA_VERSION%"
 
-set "DEFAULT_RENDERER=ai"
+set "DEFAULT_RENDERER=arnold"
 set "KATANA_TAGLINE=Arnold 4.0.0.3"
 
 set "PATH=%PATH%;%U_KATANA_HOME%\bin";

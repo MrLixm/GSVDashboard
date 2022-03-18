@@ -39,6 +39,7 @@ import PackageSuperToolAPI
 from . import c
 from . import config
 from . import GSV
+from . import EditorResources as resources
 
 __all__ = ['GSVDashboardNode', "SuperToolGSV"]
 
@@ -111,9 +112,65 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
     The supertool node in the nodegraph.
     """
 
-    _hints = {}
-
     parsing_modes = GSV.GSVSettings.get_expected("parsing.mode")
+
+    capsule_options = [
+        'Locked',
+        'Global',
+        'Not-Edited',
+        'Local',
+    ]
+
+    _hints = {
+        "{}.parsing_mode".format(c.name): {
+            "widget": "popup",
+            "label": "Scene Parsing",
+            "options": "|".join(parsing_modes),
+            "help": """
+                <p>This determines how the scene is parsed to find GSV Nodes.</p>
+                <ul>
+                <li><code>&lt;logical_upstream&gt;</code> : only process nodes that contribute to building the scene and are connected to this node.</li>
+                <li><code>&lt;all_scene&gt;</code> : all nodes in the scene, no matter if they are connected or not.</li>
+                <li><code>&lt;upstream&gt;</code> : all nodes upstream of this node no matter if they contribute to the scene or not.</li>
+                </ul>
+                <p><br /><br /></p>
+            """
+        },
+        "{}.Filters.view_type".format(c.name): {
+            "widget": "capsule",
+            "label": "Disable :",
+            "options": capsule_options,
+            'colors': [
+                resources.Colors.capsule_locked,
+                resources.Colors.yellow_global_disabled,
+                resources.Colors.capsule_edited,
+                resources.Colors.capsule_local,
+            ],
+            'delimiter': ', ',
+            'equalPartitionWidths': True,
+            'exclusive': False,
+            'horizontalMargin': 5,
+            'verticalMargin': 2,
+            'innerMargin': 10,
+            'cornerRoundness': 20,
+            "help": "Click on a box to exclude all GSV corresponding to the label on it from the above list widget."
+        },
+        "{}.Filters.match_names".format(c.name): {
+            "label": "name",
+            "help": """
+                <p>Only display GSV names matching this regular expression.</p>
+                <p>The expression is <a href="https://www.datacamp.com/community/tutorials/python-regular-expression-tutorial#summary-table" target="_blank">Python regex</a> formatted. It is evaluated using <code>re.search(gsv_name)</code></p
+            """
+        },
+        "{}.Filters.match_values".format(c.name): {
+            "label": "values",
+            "help": """
+                <p>Only display GSV who got at least one value matching this regular expression.</p>
+                <p>The expression is <a href="https://www.datacamp.com/community/tutorials/python-regular-expression-tutorial#summary-table" target="_blank">Python regex</a> formatted. It is evaluated using <code>re.search(gsv_value)</code></p>            
+            """
+        },
+
+    }
 
     def __init__(self):
 
@@ -124,6 +181,16 @@ class GSVDashboardNode(NodegraphAPI.SuperTool):
         # Hidden version parameter to detect out-of-date internal networks
         # and upgrade it.
         self.getParameters().createChildNumber('version', c.version)
+
+        self.getParameters().createChildString(
+            "parsing_mode",
+            self.parsing_modes[0]
+        )
+        filters_grp = self.getParameters().createChildGroup("Filters")
+
+        filters_grp.createChildString("view_type", ", ".join(self.capsule_options))
+        filters_grp.createChildString("match_names", "")
+        filters_grp.createChildString("match_values", "")
 
         self.__build_default_network()
 
@@ -343,9 +410,14 @@ class SuperToolGSVStatus:
     global_set_this = "global set by the supertool"
     global_not_set = "global"
     global_set = "global set locally"
+    local_set_this = "local set by the supertool"
     local_not_set = "local not set"
     local_set = "local set locally"
-    local_set_this = "local set by the supertool"
+
+
+class SuperToolGSVIssues:
+
+    edit_dont_exists = "This GSV is being edited but it doesn't exists in the scene anymore."
 
 
 class SuperToolGSV(object):
@@ -362,6 +434,7 @@ class SuperToolGSV(object):
     """
 
     statuses = SuperToolGSVStatus
+    issues = SuperToolGSVIssues
 
     def __init__(self, data):
 
@@ -448,6 +521,22 @@ class SuperToolGSV(object):
             "SuperToolGSV <{}> was not built properly and a status cannot "
             "be found.".format(self.name)
         )
+
+    def list_issues(self):
+        """
+        Return a list of issues this GSV have.
+        Empty list if None.
+
+        Returns:
+            list of str: list of SuperToolGSVIssues issues
+        """
+
+        issues = list()
+
+        if self.__data.nodes[0].node == self.__knode and len(self.__data.nodes) == 1:
+            issues.append(SuperToolGSVIssues.edit_dont_exists)
+
+        return issues
 
     def get_current_value(self):
         """

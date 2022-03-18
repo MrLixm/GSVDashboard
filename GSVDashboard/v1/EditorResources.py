@@ -19,10 +19,12 @@
 
 """
 import os.path
+from PyQt5.QtGui import QPalette
 
 __all__ = [
     "Colors",
-    "Icons"
+    "Icons",
+    "StyleSheets"
 ]
 
 
@@ -41,10 +43,48 @@ class Colors:
     viewed = (104, 91, 186)
     """rgb(140, 140, 140)"""
     text_disabled = (140, 140, 140)
-    """rgb(57, 217, 121)"""
+    """rgb(60, 168, 94)"""
     edit = (57, 217, 121)  # used by edit button
     """rgb(114, 114, 114)"""
     reset = (114, 114, 114)  # used by reset button
+    """rgb(65, 143, 85)"""
+    capsule_edited = (65, 143, 85)
+    """rgb(105, 103, 142)"""
+    capsule_local = (105, 103, 142)
+    """rgb(114, 114, 114)"""
+    capsule_locked = (114, 114, 114)
+
+    @classmethod
+    def qpallette(cls):
+        import UI4
+        mainwindow = UI4.App.MainWindow.GetMainWindow()
+        qpalette = mainwindow.palette()
+        return qpalette
+
+    @classmethod
+    def app_background(cls):
+        """rgba(46, 46, 46, 1)"""
+        return cls.qpallette().color(QPalette.Background)
+
+    @classmethod
+    def app_background_dark(cls):
+        """rgba(38, 38, 38, 1)"""
+        return cls.qpallette().color(QPalette.Normal, QPalette.Shadow)
+
+    @classmethod
+    def app_background_light(cls):
+        """rgba(56, 56, 56, 1)"""
+        return cls.qpallette().color(QPalette.Normal, QPalette.Base)
+
+    @classmethod
+    def app_disabled_text(cls):
+        """rgba(117, 117, 117, 1)"""
+        return cls.qpallette().color(QPalette.Disabled, QPalette.Text)
+
+    @classmethod
+    def app_text(cls):
+        """rgba(179, 179, 179, 1)"""
+        return cls.qpallette().color(QPalette.Normal, QPalette.Text)
 
 
 class Icons:
@@ -62,5 +102,5 @@ class Icons:
     status_l_viewed = os.path.join(__root, "status_l_viewed.svg")
     status_node_getter = os.path.join(__root, "status_node_getter.svg")
     status_node_setter = os.path.join(__root, "status_node_setter.svg")
-    info = os.path.join(__root, "info.svg")
     logo = os.path.join(__root, "gsvdb-logo.svg")
+

@@ -19,6 +19,8 @@
 
 """
 import logging
+import os
+import re
 import time
 
 try:
@@ -35,20 +37,15 @@ from Katana import (
     Utils,
     UI4
 )
-
+from UI4.FormMaster import CreateParameterPolicy as CreateParameterPolicy
+from UI4.FormMaster.KatanaFactory import ParameterWidgetFactory as ParameterWidgetFactory
 
 from . import c
 from . import EditorResources as resources
 from .EditorComponents import (
-    QModMenu,
     TreeWidgetItemGSV,
-    GSVPropertiesWidget,
     QTitleBar,
-    ResetButton,
-    EditButton,
     GSVTreeWidget,
-    UpdateButton,
-    HLabeledWidget
 
 )
 # import for type hints only
@@ -127,7 +124,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         """
         Associate an event in the Katana scene with a method on this class.
 
-        Here we are updating the listWidget only for 3 events.
+        Here we are updating the treeWidget when specific events happened.
 
         Args:
             enabled(bool): Set if the even handler is enabled or not.
@@ -167,11 +164,13 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         Update ``tw1`` if ``__update_tw1`` is set to True.
 
         !! While the node is edited this is run indefinitively. Don't log/run
-        anything that is not a in a condition.
+        anything that is not in a condition.
         """
         if self.__update_tw1:
-            self.__tw_update()
-            self.__update_tw1 = False
+            try:
+                self.__tw_update()
+            finally:
+                self.__update_tw1 = False
 
         return
 
@@ -201,6 +200,9 @@ class GSVDashboardEditor(QtWidgets.QWidget):
     """
 
     def __uicook(self):
+        """
+        Called once on node's instancing
+        """
 
         # ==============
         # Create Layouts
@@ -210,89 +212,61 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # ==============
         # Create Widgets
         # ==============
-        self.ttlb_header = QTitleBar(title="GSVs")
-        self.btn_update = UpdateButton()
-        self.cbb_source = HLabeledWidget(QtWidgets.QComboBox())
-        self.tw1 = GSVTreeWidget()
-        self.mmnu_props = QModMenu()
 
-        self.ttlb_props_hd_locked = QTitleBar(title="Properties")
-        self.ttlb_props_hd_reset = QTitleBar(title="Properties")
-        self.ttlb_props_hd_edit = QTitleBar(title="Properties")
-        self.ttlb_props_footer = QTitleBar()
-        self.btn_reset = ResetButton()
-        self.btn_edit = EditButton()
-        self.gsv_props_wgt = GSVPropertiesWidget()
+        # -- Create Widgets from parameters ----
+        # Honestly I don't know why they are private attributes
+
+        self.__pp_parsing_mode = CreateParameterPolicy(
+            parentPolicy=None,
+            param=self.__node.getParameter('parsing_mode')
+        )
+        self.__pp_filters_grp = CreateParameterPolicy(
+            parentPolicy=None,
+            param=self.__node.getParameter('Filters')
+        )
+        self.__pp_view_type = CreateParameterPolicy(
+            parentPolicy=None,
+            param=self.__node.getParameter('Filters.view_type')
+        )
+        self.__pp_match_names = CreateParameterPolicy(
+            parentPolicy=None,
+            param=self.__node.getParameter('Filters.match_names')
+        )
+        self.__pp_match_value = CreateParameterPolicy(
+            parentPolicy=None,
+            param=self.__node.getParameter('Filters.match_values')
+        )
+
+        self.cbb_mode = ParameterWidgetFactory.buildWidget(
+            parent=self,
+            policy=self.__pp_parsing_mode
+        )  # type: QtWidgets.QWidget
+
+        self.grp_filters = ParameterWidgetFactory.buildWidget(
+            parent=self,
+            policy=self.__pp_filters_grp
+        )  # type: QtWidgets.QWidget
+
+        self.ttlb_header = QTitleBar()
+        self.btn_update = UI4.Widgets.ToolbarButton(
+            toolTip="",
+            parent=self,
+            normalPixmap=UI4.Util.IconManager.GetPixmap(
+                os.path.join("Icons", "update_active20_hilite.png")
+            )
+
+        )
+        self.tw1 = GSVTreeWidget()
 
         # ==============
         # Modify Widgets
         # ==============
-
-        # # QPushButton
-        self.btn_update.setToolTip("Manually update the GSV list.")
-        self.btn_edit.setText("edit")
-        self.btn_edit.setToolTip(
-            "Create a VariableSet to edit the selected GSV."
+        self.ttlb_header.set_icon(resources.Icons.logo, 24)
+        self.ttlb_header.set_icon_tooltip(
+            "GSVDb v{}.{}.{}-{}.{}"
+            "".format(c.v_major, c.v_minor, c.v_patch, c.v_dev, c.v_published)
         )
-        self.btn_reset.setText("reset")
-        self.btn_reset.setToolTip(
-            "Delete the modified value for the selected GSV. "
-            "This GSV is no more "
-            "edited by this super tool."
-        )
-        # QToolBars
-        self.ttlb_props_hd_locked.set_icon(resources.Icons.status_l_locked)
-        self.ttlb_props_hd_reset.set_icon(resources.Icons.status_l_edited)
-        self.ttlb_props_hd_edit.set_icon(resources.Icons.status_l_viewed)
-
-        # QModeMenu
-        mgprop_setup = {
-            GSVPropertiesWidget.status_editable: [
-                self.ttlb_props_hd_edit,
-                self.ttlb_props_footer
-            ],
-            GSVPropertiesWidget.status_locked: [
-                self.ttlb_props_hd_locked,
-                self.ttlb_props_footer
-            ],
-            GSVPropertiesWidget.status_edited: [
-                self.ttlb_props_hd_reset,
-                self.ttlb_props_footer
-            ],
-        }
-        for __status, _widgets in mgprop_setup.items():
-            self.mmnu_props.add_status(
-                __status,
-                replace_default=True,
-                set_to_current=True
-            )
-            self.mmnu_props.set_header_widget(_widgets[0])
-            self.mmnu_props.set_footer_widget(_widgets[1])
-            continue
-        self.mmnu_props.set_content(self.gsv_props_wgt)
-        self.mmnu_props.update()
-
-        # QComboBox
-        self.cbb_source.set_text("Scene Parsing")
-        self.cbb_source.set_info(
-            "This determine how the scene is parsed to find GSV Nodes.\n"
-            "<logical_upstream> : only process node that contribute to building"
-            " the scene and are connected to this node.\n"
-            "<all_scene> : all nodes in the scene, no matter if "
-            "they are connected or not.\n"
-            "<upstream> : all nodes upstream of this node no matter if they "
-            "contribute to the scene or not."
-        )
-        self.cbb_source.content.clear()
-        self.cbb_source.content.addItems(self.__node.parsing_modes)
-        #   default is logical_upstream
-        self.cbb_source.content.setCurrentText(self.__node.parsing_modes[0])
-        self.cbb_source.content.setSizePolicy(
-            QtWidgets.QSizePolicy(
-                QtWidgets.QSizePolicy.Maximum,
-                QtWidgets.QSizePolicy.Maximum
-            )
-        )
+        self.ttlb_header.set_icon_link("https://github.com/MrLixm/GSVDashboard")
 
         # ==============
         # Add to Layouts
@@ -300,43 +274,33 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.setLayout(self.lyt_m)
         self.lyt_m.setSpacing(8)
         self.lyt_m.addWidget(self.ttlb_header)
-        # self.lyt_m.addWidget(self.ttlb_header)
         self.lyt_m.addWidget(self.tw1)
-        self.lyt_m.addWidget(self.mmnu_props)
+        self.lyt_m.addWidget(self.grp_filters)
 
-        self.ttlb_header.add_widget(self.cbb_source)
+        self.ttlb_header.add_widget(self.cbb_mode)
         self.ttlb_header.add_widget(self.btn_update)
-        self.ttlb_props_hd_reset.add_widget(self.btn_reset)
-        self.ttlb_props_hd_edit.add_widget(self.btn_edit)
 
         # ==============
         # Connections
         # ==============
 
-        self.tw1.itemSelectionChanged.connect(self.__tw_selection_changed)
-        self.cbb_source.content.activated.connect(self.__tw_update)
+        # note: we doesn't need to set Node's parameters callback to update
+        # the tw as we already have call backs when any parameter is finalized
+        # (see __setup_event_handlers)
+
+        self.tw1.edited_sgn.connect(self.__gsv_set_value)
+        self.tw1.reset_sgn.connect(self.__gsv_remove_edit)
         self.btn_update.clicked.connect(self.__tw_update)
-        self.btn_reset.clicked.connect(self.gsv_props_wgt.set_unedited)
-        self.btn_edit.clicked.connect(self.gsv_props_wgt.set_edited)
-        # GSVPropertiesWidget
-        self.gsv_props_wgt.value_changed_sgn.connect(
-            self.__gsv_set_value
-        )
-        self.gsv_props_wgt.status_changed_sgn.connect(
-            self.__props_status_changed
-        )
-        self.gsv_props_wgt.unedited_sgn.connect(
-            self.__gsv_remove_edit
-        )
 
         return
 
-    def __tw_update(self):
+    def __tw_update(self, *args, **kwargs):
         """
+        Re-build the tree widget from scratch.
         """
         s_time = time.clock()
 
-        parse_mode = self.cbb_source.content.currentText()
+        parse_mode = self.__pp_parsing_mode.getValue()
         if not parse_mode:
             raise ValueError(
                 "[__tw_update] Parse mode queried from QComboBox return nul."
@@ -352,10 +316,9 @@ class GSVDashboardEditor(QtWidgets.QWidget):
 
         st_gsvs = self.__node.get_gsvs(mode=parse_mode)
         for st_gsv in st_gsvs:
-            TreeWidgetItemGSV(st_gsv=st_gsv, parent=self.tw1)
+            self.__tw_create_item_from(st_gsv)
 
         self.__tw_select_last_selected()
-        self.__tw_selection_changed()
 
         s_time = time.clock() - s_time
         logger.info(
@@ -363,6 +326,42 @@ class GSVDashboardEditor(QtWidgets.QWidget):
             "".format(self.__class__.__name__, s_time)
         )
         return
+
+    def __tw_create_item_from(self, stgsv):
+        """
+        Create a tree widget item from the given SuperToolGSV except if this
+        item doesn't pass the user-specified filters.
+
+        Args:
+            stgsv(SuperToolGSV):
+
+        Returns:
+            TreeWidgetItemGSV or None: TreeWidgetItemGSV created or None if not.
+        """
+        filters_dict = self.__get_filters()
+        if filters_dict["global"] and stgsv.is_global:
+            return
+        if filters_dict["local"] and stgsv.is_local:
+            return
+        if filters_dict["not_edited"] and not stgsv.is_edited:
+            return
+        if filters_dict["locked"] and not stgsv.is_editable:
+            return
+
+        f = filters_dict["match_names"]
+        if f and not re.search(f, stgsv.name):
+            return
+
+        f = filters_dict["match_values"]
+        skip = True
+        for v in stgsv.get_all_values():
+            if f and re.search(f, v):
+                skip = False
+                break
+        if f and skip:
+            return
+
+        return TreeWidgetItemGSV(parent=self.tw1, st_gsv=stgsv)
 
     def __tw_select_last_selected(self):
         """
@@ -389,47 +388,6 @@ class GSVDashboardEditor(QtWidgets.QWidget):
 
         return
 
-    def __tw_selection_changed(self):
-        """
-        When selection change, update the properties displayed.
-        """
-
-        gsv_data = self.tw1.get_selected_gsv_data()
-        if not gsv_data:
-            # TODO [optional] see what to do, but should "never" happens.
-            return
-
-        # self.tw1.last_selected = gsv_data.name
-
-        # update the properties
-        self.gsv_props_wgt.set_data(gsv_data)
-
-        logger.debug(
-            "[{}][__tw_selection_changed] Finished."
-            "SuperToolGSV found is <{}>."
-            "".format(self.__class__.__name__, gsv_data)
-        )
-        return
-
-    def __props_status_changed(self, new_status, previous_status):
-        """
-        Called by signals when status is changed on the GSVPropertiesWidget.
-
-        Args:
-            new_status(str):
-            previous_status(str):
-        """
-        # Change the QMenuGroup status based on the GSVPropertiesWidget's one.
-        # (the QMenuGroup should have already the status built upon the ones
-        # available in GSVPropertiesWidget so it's safe to do this)
-        self.mmnu_props.set_status_current(new_status)
-        logger.debug(
-            "[{}][__props_status_changed] Finished. new_status=<>,"
-            "previous_status=<{}>"
-            "".format(self.__class__.__name__, new_status, previous_status)
-        )
-        return
-
     def __gsv_set_value(self, stgsv, new_value):
         """
         Called by signals from GSVPropertiesWidget.
@@ -437,7 +395,7 @@ class GSVDashboardEditor(QtWidgets.QWidget):
 
         Args:
             stgsv(SuperToolGSV):
-            new_value(str):
+            new_value(str): can be an empty string ""
         """
 
         if new_value is None:
@@ -450,6 +408,8 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # weirdly on Katana 4.0 signal seems to passe something that was
         # not a string. Issue was not there on Katana 4.5
         new_value = str(new_value)
+        if new_value == "":
+            new_value = str(stgsv.get_all_values()[0])
 
         self.__node.edit_gsv(name=stgsv.name, value=new_value)
         self.__tw_update()
@@ -463,3 +423,41 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         self.__node.unedit_gsv(stgsv.name)
         self.__tw_update()
         return
+
+    def __get_filters(self):
+        """
+        Return the interface user defined filter as a dictionnary.
+
+        Returns:
+            dict:
+        """
+
+        filter_dict = {
+            "global": True,
+            "local": True,
+            "not_edited": True,
+            "locked": True,
+            "match_names": None,
+            "match_values": None
+        }
+
+        v = self.__pp_view_type.getValue()  # type: str
+        v = v.split(", ")  # type: List[str]
+        if "Global" in v:
+            filter_dict["global"] = False
+        if "Local" in v:
+            filter_dict["local"] = False
+        if "Locked" in v:
+            filter_dict["locked"] = False
+        if "Not-Edited" in v:
+            filter_dict["not_edited"] = False
+
+        v = self.__pp_match_names.getValue()  # type: str
+        v = None if v == "" else v
+        filter_dict["match_names"] = v
+
+        v = self.__pp_match_value.getValue()  # type: str
+        v = None if v == "" else v
+        filter_dict["match_values"] = v
+
+        return filter_dict
