@@ -21,9 +21,15 @@
 from __future__ import absolute_import
 
 from .Node import GSVDashboardNode
+from . import c
 
 
 __all__ = ["GSVDashboardNode", "get_editor"]
+
+
+version = "v{}.{}.{}-{}.{}".format(
+    c.v_major, c.v_minor, c.v_patch, c.v_dev, c.v_published
+)
 
 
 def get_editor():
