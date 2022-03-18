@@ -262,7 +262,10 @@ class GSVDashboardEditor(QtWidgets.QWidget):
         # Modify Widgets
         # ==============
         self.ttlb_header.set_icon(resources.Icons.logo, 24)
-        self.ttlb_header.set_icon_tooltip("GSVdb v.{}-{}".format(c.version, c.version_publish))
+        self.ttlb_header.set_icon_tooltip(
+            "GSVDb v{}.{}.{}-{}.{}"
+            "".format(c.v_major, c.v_minor, c.v_patch, c.v_dev, c.v_published)
+        )
         self.ttlb_header.set_icon_link("https://github.com/MrLixm/GSVDashboard")
 
         # ==============

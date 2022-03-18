@@ -28,10 +28,10 @@ def increment(source: Path):
     c_file = source / "v1" / "c.py"
     code = c_file.read_text(encoding="utf-8")
 
-    version = re.search(r"version_publish\s*=\s*(\d+)", code)
+    version = re.search(r"v_published\s*=\s*(\d+)", code)
     assert version, f"Can't find <version_publish> in <{c_file}> !"
     new_version = int(version.group(1)) + 1
-    new_code = f"version_publish = {new_version}"
+    new_code = f"v_published = {new_version}"
     new_code = code.replace(version.group(0), str(new_code))
 
     c_file.write_text(new_code, encoding="utf-8")
