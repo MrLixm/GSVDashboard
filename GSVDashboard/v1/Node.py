@@ -489,6 +489,17 @@ class SuperToolGSV(object):
         return False if self.__data.locked else True
 
     @property
+    def is_arbitrary_editable(self):
+        """
+        Is the gsv can be modified with any value.
+        This is determined if there is "*" int he possible values.
+
+        Returns:
+            bool: True if you can use any value to edit this GSV.
+        """
+        return "*" in self.get_all_values()
+
+    @property
     def status(self):
         """
         Combine all the above properties into a more convenient status string.

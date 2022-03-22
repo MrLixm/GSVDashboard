@@ -3,7 +3,8 @@
 Welcome on the GSVDb supertool's documentation.
 
 [![root](https://img.shields.io/badge/back_to_root-536362?)](../README.md)
-
+[![INDEX](https://img.shields.io/badge/index-fcb434?labelColor=blue)](INDEX.md)
+[![API](https://img.shields.io/badge/api-4f4f4f)](API.md)
 
 ## Installation
 
@@ -24,6 +25,18 @@ location registered by the `KATANA_RESOURCES` env variable.
 ![preview image of gsvdb node with annotations](img/doc-ui-look.jpg)
 
 > ⚠ Make sure the node is always viewed when using `logical_upstream` mode.
+
+If in the `values` list you see a `DELETED` value, this mean a VariableDelete
+node was used at some point.
+
+### Editing
+
+When a GSV is edited, a ComboBox widget will appear that will allow you to
+choose which value to set for this GSV. For some node like the OpScript node
+it is not possible to get the values this GSV can be set to, and as such it's 
+assumed to be editable with any value, represented by a `*`. In that case
+the ComboxBox become editable, and you can delete the `*` to replace it by any
+text.
 
 ### Filtering
 
@@ -85,7 +98,15 @@ If no setting are specified default are :
 
 ```python
 excluded_gsv_names = ["gaffersate"]
-excluded_as_groupnode_type = ["GafferThree", "Importomatic"]
+excluded_as_groupnode_type = [
+  "GafferThree",
+  "Importomatic",
+  "LookFileLightAndConstraintActivator",
+  "LookFileMultiBake",
+  "LookFileManager",
+  "NetworkMaterials",
+  "ShadingGroup",
+]
 ```
 
 You can specify scene parsing settings using `user parameters`. Root of these
@@ -110,3 +131,5 @@ Here are the supported `user` parameters setup :
 ---
 
 [![root](https://img.shields.io/badge/back_to_root-536362?)](../README.md)
+[![INDEX](https://img.shields.io/badge/index-fcb434?labelColor=blue)](INDEX.md)
+[![API](https://img.shields.io/badge/api-4f4f4f)](API.md)

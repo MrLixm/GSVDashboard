@@ -385,6 +385,8 @@ class TreeWidgetItemGSV(TreeWidgetItemBase):
             self.cbb_values.setCurrentText(
                 str(self.gsv.get_current_value())
             )
+            self.cbb_values.setEditable(self.gsv.is_arbitrary_editable)
+
             self.cbb_values.activated.connect(self.__emit_edited)
 
             self.parent.setItemWidget(self, column, self.cbb_values)
@@ -513,80 +515,8 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
 
     def __cook(self):
 
-        color1 = resources.Colors.app_background_light().getRgb()
-        color2 = "rgb(71,72,101)"
-        color3 = resources.Colors.app_disabled_text().getRgb()
+        self.__bake_style()
 
-        style = """
-        
-        QTreeView {{
-            background-color: transparent;
-            border-radius: 3px;
-            border: 0;
-            padding: 3px;
-        }}
-         
-        QTreeView::item {{
-            background: rgb{0};
-            margin: 2px 0 2px;
-        }}
-        
-        QTreeView::item:first {{
-            border-left: 3px solid transparent;
-            border-top-left-radius: 3px;
-            border-bottom-left-radius: 3px;
-        }}
-        
-        QTreeView::item:last {{
-            border-top-right-radius: 3px;
-            border-bottom-right-radius: 3px;
-        }}
-
-        QTreeView::item:hover:first {{
-            border-left: 3px solid {1};
-        }}
-
-        QTreeView::item:selected {{
-            background: rgb(57,57,71);
-            border-top: 1px solid {1};
-            border-bottom: 1px solid {1};
-        }}        
-        QTreeView::item:selected:first {{
-            border-left: 3px solid {1};
-        }}
-        QTreeView::item:selected:last {{
-            border-right: 1px solid {1};
-        }}
-
-        QHeaderView {{
-            color: rgba{2};
-            font-weight: 500;
-        }}
-
-        QHeaderView::section {{
-            margin:3px;
-            margin-bottom:8px;
-            padding-bottom:3px;
-            border: 0;
-            /*border-bottom: 1px solid #444444;*/
-        }}
-        
-        /* for the values column */
-        QComboBox {{
-            background: transparent;
-            border-radius: 3px;
-            margin:3px;
-            padding-left: 3px;
-            border: 1px solid rgba(255,255,255,0.1);
-        }}
-        
-        QPushButton {{
-            margin: 3px;
-        }}
-
-        """.format(color1, color2, color3)
-
-        self.setStyleSheet(style)
         self.setColumnCount(TreeWidgetItemGSV.column_number())
         self.setMinimumHeight(150)
         self.setAlternatingRowColors(False)
@@ -624,6 +554,89 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
         self.customContextMenuRequested[QtCore.QPoint].connect(
             self.__contextmenu
         )
+
+        return
+
+    def __bake_style(self):
+
+        color1 = resources.Colors.app_background_light().getRgb()
+        color2 = "rgb(71,72,101)"
+        color3 = resources.Colors.app_disabled_text().getRgb()
+        color4 = resources.Colors.app_background_dark().getRgb()
+
+        style = """
+
+        QTreeView {{
+            background-color: transparent;
+            border-radius: 3px;
+            border: 0;
+            padding: 3px;
+        }}
+
+        QTreeView::item {{
+            background: rgb{0};
+            margin: 2px 0 2px;
+        }}
+
+        QTreeView::item:first {{
+            border-left: 3px solid transparent;
+            border-top-left-radius: 3px;
+            border-bottom-left-radius: 3px;
+        }}
+
+        QTreeView::item:last {{
+            border-top-right-radius: 3px;
+            border-bottom-right-radius: 3px;
+        }}
+
+        QTreeView::item:hover:first {{
+            border-left: 3px solid {1};
+        }}
+
+        QTreeView::item:selected {{
+            background: rgb(57,57,71);
+            border-top: 1px solid {1};
+            border-bottom: 1px solid {1};
+        }}        
+        QTreeView::item:selected:first {{
+            border-left: 3px solid {1};
+        }}
+        QTreeView::item:selected:last {{
+            border-right: 1px solid {1};
+        }}
+
+        QHeaderView {{
+            color: rgba{2};
+            font-weight: 500;
+        }}
+
+        QHeaderView::section {{
+            margin:3px;
+            margin-bottom:8px;
+            padding-bottom:3px;
+            border: 0;
+            /*border-bottom: 1px solid #444444;*/
+        }}
+
+        /* for the values column */
+        QComboBox {{
+            background: transparent;
+            border-radius: 3px;
+            margin:3px;
+            padding-left: 3px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }}
+        QComboBox:editable {{
+            background: rgba{3};
+        }}
+
+        QPushButton {{
+            margin: 3px;
+        }}
+
+        """.format(color1, color2, color3, color4)
+
+        self.setStyleSheet(style)
 
         return
 
@@ -720,10 +733,12 @@ class GSVTreeWidget(QtWidgets.QTreeWidget):
 
     def emit_edited(self, stgsv, newvalue):
         self.edited_sgn.emit(stgsv, newvalue)
+        self.__bake_style()
         return
 
     def emit_reset(self, stgsv):
         self.reset_sgn.emit(stgsv)
+        self.__bake_style()
         return
 
 
@@ -774,7 +789,7 @@ class MenuNodeList(QtWidgets.QMenu):
             menu.addAction(act)
             menu.addSeparator()
 
-            for node_gsv_value in gsvnode.gsv_values:
+            for node_gsv_value in gsvnode.gsvs.get(stgsv.name, list()):
                 act = QtWidgets.QAction(node_gsv_value, menu)
                 act.setDisabled(True)
                 menu.addAction(act)
