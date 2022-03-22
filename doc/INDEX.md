@@ -98,7 +98,15 @@ If no setting are specified default are :
 
 ```python
 excluded_gsv_names = ["gaffersate"]
-excluded_as_groupnode_type = ["GafferThree", "Importomatic"]
+excluded_as_groupnode_type = [
+  "GafferThree",
+  "Importomatic",
+  "LookFileLightAndConstraintActivator",
+  "LookFileMultiBake",
+  "LookFileManager",
+  "NetworkMaterials",
+  "ShadingGroup",
+]
 ```
 
 You can specify scene parsing settings using `user parameters`. Root of these

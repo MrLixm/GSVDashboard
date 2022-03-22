@@ -69,6 +69,26 @@ Returns:
 ## ![class](https://img.shields.io/badge/class-6F5ADC) `GSV.GSVObject`
 ## ![class](https://img.shields.io/badge/class-6F5ADC) `GSV.GSVScene`
 
+# ![module](https://img.shields.io/badge/module-5663B3) `config`
+
+Configure scene parsing settings from parameters in the scene.
+
+## ![function](https://img.shields.io/badge/function-4f4f4f) `config.get_parse_settings`
+
+Parse scene for parameter used to configure the GSVSettings.
+Define default paramaters values if none found.
+
+Settings that can't be modified here (overiden later by paramaters from the interface):
+- `settings["parsing"]["mode"]`
+- `settings["parsing"]["source"]`
+
+```
+Returns:
+    GSV.GSVSettings:
+```
+
+_For consistency I know that adding support for new node should be set here
+and not on GSVSettings itself._ See issue #11.
 
 ---
 [![root](https://img.shields.io/badge/back_to_root-536362?)](../README.md)

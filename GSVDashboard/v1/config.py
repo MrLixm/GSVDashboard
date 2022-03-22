@@ -175,7 +175,12 @@ def get_parse_settings():
         settings["excluded"] = ["gafferState"]
         settings["parsing"]["excluded"]["asGroupsNodeType"] = [
             "GafferThree",
-            "Importomatic"
+            "Importomatic",
+            "LookFileLightAndConstraintActivator",
+            "LookFileMultiBake",
+            "LookFileManager",
+            "NetworkMaterials",
+            "ShadingGroup",
         ]
 
     return settings
