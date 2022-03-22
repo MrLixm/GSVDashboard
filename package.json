@@ -1,6 +1,6 @@
 {
   "name": "gsvdb",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "author": "Liam Collod",
   "license": "Apache 2.0",
   "description": "Katana Supertool for previewing and editing GSV in the node graph. ",

@@ -18,6 +18,7 @@
 
 """
 import pprint
+import re
 from collections import OrderedDict
 import sys
 import logging
@@ -44,14 +45,121 @@ from .SceneParse import (
 __all__ = ["GSVNode", "GSVScene", "GSVObject", "GSVSettings"]
 
 logger = logging.getLogger("{}.Node".format(c.name))
-TIME = NodegraphAPI.GetCurrentTime()
 
 
-def get_opscript_gsv_name(knode):
+def _get_parameter(knode, param_path):
+    """
+    Return the parameter values in the given node.
 
-    lua_script = knode.getParameter("lua.script").getValue()
+    Args:
+        knode(NodegraphAPI.Node):
+        param_path(str): parameter path on node
 
-    return
+    Returns:
+        list: list of values holded by this parameter.
+
+    Notes:
+        Parameters are considered as not multi-sampled.
+        TODO support case where given param has multiple nested param
+    """
+
+    param = knode.getParameter(param_path)
+    if not param:
+        raise ValueError(
+            "Parameter <{}> not found on node <{}>"
+            "".format(param_path, knode)
+        )
+
+    output = list()
+
+    if param.getNumChildren() != 0:
+        for index in range(0, param.getNumChildren()):
+            output.append(param.getChildByIndex(index).getValue(0))
+    else:
+        output = [param.getValue(0)]
+
+    return output
+
+
+def gsv_get_opscript_structure(knode):
+    """
+    Args:
+        knode(NodegraphAPI.Node):
+
+    Returns:
+        dict of str:
+    """
+    out = dict()
+
+    lua_script = _get_parameter(knode, "script.lua")
+    lua_script = lua_script[0]
+    for match in re.finditer(
+            r"Interface.GetGraphStateVariable\(\"(.+)\"\)",
+            lua_script
+    ):
+        out[match.group(1)] = ["*"]
+
+    return out
+
+
+def gsv_get_variabledelete_structure(knode):
+    """
+    Args:
+        knode(NodegraphAPI.Node):
+
+    Returns:
+        dict of str:
+    """
+    gsvname = _get_parameter(knode, "variableName")
+    gsvname = gsvname[0]
+    return {
+        gsvname: ["DELETED"]
+    }
+
+
+def gsv_get_variableset_structure(knode):
+    """
+    Args:
+        knode(NodegraphAPI.Node):
+
+    Returns:
+        dict of str:
+    """
+    gsvname = _get_parameter(knode, "variableName")
+    gsvname = gsvname[0]
+    return {
+        gsvname: _get_parameter(knode, "variableValue")
+    }
+
+
+def gsv_get_variablegroup_structure(knode):
+    """
+    Args:
+        knode(NodegraphAPI.Node):
+
+    Returns:
+        dict of str:
+    """
+    gsvname = _get_parameter(knode, "variableName")
+    gsvname = gsvname[0]
+    return {
+        gsvname: _get_parameter(knode, "pattern")
+    }
+
+
+def gsv_get_variableswitch_structure(knode):
+    """
+    Args:
+        knode(NodegraphAPI.Node):
+
+    Returns:
+        dict of str:
+    """
+    gsvname = _get_parameter(knode, "variableName")
+    gsvname = gsvname[0]
+    return {
+        gsvname: _get_parameter(knode, "patterns")
+    }
 
 
 class GSVSettings(dict):
@@ -62,7 +170,9 @@ class GSVSettings(dict):
     Used to configure the output result of the scene parsing.
 
     [nodes.X.name](str or callable):
+        callable must return a list of string: list of GSV names
     [nodes.X.values](str or callable):
+        callable must return a list of string: list of GSV values
 
     [excluded.asGroupsNodeType](list of str):
         list of node type that should not be considered as groups and children
@@ -70,35 +180,28 @@ class GSVSettings(dict):
 
     """
 
-    gsv_delete = "GSVDELETE"  # token to specify that a node unset the values
-
     __default = {
         "excluded": [],
         "nodes": {
             "VariableSwitch": {
                 "action": "getter",
-                "name": "variableName",
-                "values": "patterns"
+                "structure": gsv_get_variableswitch_structure,
             },
             "VariableEnabledGroup": {
                 "action": "getter",
-                "name": "variableName",
-                "values": "pattern"
+                "structure": gsv_get_variablegroup_structure,
             },
             "VariableSet": {
                 "action": "setter",
-                "name": "variableName",
-                "values": "variableValue"
+                "structure": gsv_get_variableset_structure
             },
             "VariableDelete": {
                 "action": "setter",
-                "name": "variableName",
-                "values": gsv_delete
+                "structure": gsv_get_variabledelete_structure
             },
             "OpScript": {
                 "action": "getter",
-                "name": "variableName",
-                "values": gsv_delete
+                "structure": gsv_get_opscript_structure
             }
 
         },
@@ -116,8 +219,7 @@ class GSVSettings(dict):
         "nodes": {
             "template": {
                 "action": ["getter", "setter"],
-                "name": str(),
-                "values": str()
+                "structure": callable,
             }
         },
         "parsing": {
@@ -172,6 +274,11 @@ class GSVSettings(dict):
                 assert nvkey in node_key_list, \
                     pre + "Key <{}> is not supported: must be one of <{}>" \
                           "".format(nvkey, node_key_list)
+
+                if nvkey == "structure":
+                    assert callable(nvvalue), \
+                        pre + "Key <{}> has an invalid value type: " \
+                              "must be a callable.".format(nvkey)
 
         # check parsing.mode
         parsing_mode = self["parsing"].get("mode")
@@ -231,8 +338,10 @@ class GSVNode(object):
         gsv_action(str):
             Action performed on GSV: setter or getter.
             Used by the corresponding properties method.
-        gsv_name(str): Name of the GSV
-        gsv_values(list of str): Value(s) the GSV can take
+        gsvs(dict of str):
+            dictionary of gsv names with their asociated list of value
+            {"gsvname": [value1, ...], ...}
+
 
     """
     action_getter = "getter"
@@ -245,29 +354,15 @@ class GSVNode(object):
         self.type = node.getType()
 
         self.gsv_action = None
-        self.gsv_name = None
-        self.gsv_values = None
-
         self.gsv_action = self.scene.settings["nodes"][self.type]["action"]
 
-        gsvname = self.scene.settings["nodes"][self.type]["name"]
-        if isinstance(gsvname, str):
-            self.gsv_name = self.get_parameter(param_path=gsvname)[0]
-        elif callable(gsvname):
-            self.gsv_name = gsvname(node)
-
-        values_param = self.scene.settings["nodes"][self.type]["values"]
-        if values_param == GSVSettings.gsv_delete:
-            self.gsv_values = ["DELETED"]
-        else:
-            self.gsv_values = self.get_parameter(
-                param_path=values_param
-            )
+        self.gsvs = self.scene.settings["nodes"][self.type]["structure"]  # type: callable
+        self.gsvs = self.gsvs(node)  # type: dict
 
         logger.debug(
             "[GSVNode][__init__] Finished for node <{}> // "
-            "gsv_name={}, gsv_values={}"
-            "".format(node, self.gsv_name, self.gsv_values)
+            "{} gsvs found."
+            "".format(node, len(self.gsvs))
         )
 
         return
@@ -298,36 +393,6 @@ class GSVNode(object):
             bool: True if the node use a GSV without setting it.
         """
         return self.gsv_action == "getter"
-
-    def get_parameter(self, param_path):
-        """
-
-        Args:
-            param_path(str): parameter path on node
-
-        Returns:
-            list: list of values holded by this parameter.
-
-        Notes:
-            TODO support case where given param has multiple nested param
-        """
-
-        param = self.node.getParameter(param_path)
-        if not param:
-            raise ValueError(
-                "Parameter <{}> not found on node <{}>"
-                "".format(param_path, self.node)
-            )
-
-        output = list()
-
-        if param.getNumChildren() != 0:
-            for index in range(0, param.getNumChildren()):
-                output.append(param.getChildByIndex(index).getValue(TIME))
-        else:
-            output = [param.getValue(TIME)]
-
-        return output
 
     def select_edit(self):
         """
@@ -405,7 +470,7 @@ class GSVObject(object):
 
         for gsvnode in self.scene.nodes:
 
-            if gsvnode.gsv_name == self.name:
+            if isinstance(gsvnode.gsvs.get(self.name), list):
                 self.nodes.append(gsvnode)
 
             continue
@@ -426,8 +491,10 @@ class GSVObject(object):
 
             # the parameter holding the potential variables value might
             # have children (ex:VariableSwitch)
-            if node.gsv_values:
-                self.values.extend(map(str, node.gsv_values))
+            v = node.gsvs.get(self.name)
+            if v:
+                # make sure every item inside is a str with map()
+                self.values.extend(map(str, v))
 
             continue
 
@@ -475,7 +542,7 @@ class GSVObject(object):
             if node.is_setter:
                 # gsv_values return a list but for setter nodes this list will
                 # always have one index anyway.
-                value = node.gsv_values[0]
+                value = node.gsvs.get(self.name, list())[0]
 
         return value
 
@@ -656,15 +723,19 @@ class GSVScene(object):
 
         for gsvnode in self.nodes:
 
-            gsv = GSVObject(gsvnode.gsv_name, self)  # can return None !
-            # gsv might be excluded, so it returns None
-            if not gsv:
-                continue
-            # avoid adding multiples times the same instance
-            if gsv in self.gsvs:
+            for gsvname in gsvnode.gsvs.keys():
+
+                gsv = GSVObject(gsvname, self)  # can return None !
+                # gsv might be excluded, so it returns None
+                if not gsv:
+                    continue
+                # avoid adding multiples times the same instance
+                if gsv in self.gsvs:
+                    continue
+
+                self.gsvs.append(gsv)
                 continue
 
-            self.gsvs.append(gsv)
             continue
 
         # TODO why this is not in the above loop ?

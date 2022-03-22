@@ -25,6 +25,18 @@ location registered by the `KATANA_RESOURCES` env variable.
 
 > ⚠ Make sure the node is always viewed when using `logical_upstream` mode.
 
+If in the `values` list you see a `DELETED` value, this mean a VariableDelete
+node was used at some point.
+
+### Editing
+
+When a GSV is edited, a ComboBox widget will appear that will allow you to
+choose which value to set for this GSV. For some node like the OpScript node
+it is not possible to get the values this GSV can be set to, and as such it's 
+assumed to be editable with any value, represented by a `*`. In that case
+the ComboxBox become editable, and you can delete the `*` to replace it by any
+text.
+
 ### Filtering
 
 You can filter per-node the GSV listed in the widget. You have 3 options :
