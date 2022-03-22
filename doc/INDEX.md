@@ -3,7 +3,8 @@
 Welcome on the GSVDb supertool's documentation.
 
 [![root](https://img.shields.io/badge/back_to_root-536362?)](../README.md)
-
+[![INDEX](https://img.shields.io/badge/index-fcb434?labelColor=blue)](INDEX.md)
+[![API](https://img.shields.io/badge/api-4f4f4f)](API.md)
 
 ## Installation
 
@@ -122,3 +123,5 @@ Here are the supported `user` parameters setup :
 ---
 
 [![root](https://img.shields.io/badge/back_to_root-536362?)](../README.md)
+[![INDEX](https://img.shields.io/badge/index-fcb434?labelColor=blue)](INDEX.md)
+[![API](https://img.shields.io/badge/api-4f4f4f)](API.md)
